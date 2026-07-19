@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/services/deep_link_service.dart';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 import 'screens/Auth/login.dart';
@@ -26,12 +27,34 @@ void main() {
   runApp(const WellTaskApp());
 }
 
-class WellTaskApp extends StatelessWidget {
+class WellTaskApp extends StatefulWidget {
   const WellTaskApp({super.key});
+
+  @override
+  State<WellTaskApp> createState() => _WellTaskAppState();
+}
+
+class _WellTaskAppState extends State<WellTaskApp> {
+  // Key quan trọng để quản lý Navigator từ Service bên ngoài
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Khởi tạo Deep Link Service ngay lập tức nhưng xử lý UI thông qua GlobalKey
+    DeepLinkService().init(_navigatorKey);
+  }
+
+  @override
+  void dispose() {
+    DeepLinkService().dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey, // Gán key để Service có thể gọi Navigator
       title: 'WellTask',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -43,70 +66,27 @@ class WellTaskApp extends StatelessWidget {
         ),
         fontFamily: 'Inter',
         textTheme: const TextTheme(
-          displayLarge: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF6C63FF),
-          ),
-          displaySmall: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          headlineLarge: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          headlineMedium: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          titleLarge: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          titleMedium: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          bodyLarge: TextStyle(
-            fontSize: 14,
-            color: Color(0xFF666666),
-          ),
-          bodyMedium: TextStyle(
-            fontSize: 13,
-            color: Color(0xFF666666),
-          ),
+          displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+          displaySmall: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          bodyLarge: TextStyle(fontSize: 14, color: Color(0xFF666666)),
+          bodyMedium: TextStyle(fontSize: 13, color: Color(0xFF666666)),
         ),
       ),
-
-      // ── Màn hình khởi đầu ──────────────────────────────────────────────────
       initialRoute: '/onboarding',
-
-      // ── Bảng định tuyến All màn hình ───────────────────────────────────
       routes: {
-        // Onboarding & Auth
         '/onboarding': (context) => const OnboardingScreen(),
         '/login':      (context) => const LoginScreen(),
         '/register':   (context) => const RegisterScreen(),
-
-        // Main app shell (sau khi Log In)
         '/home':               (context) => const MainShell(),
-
-        // Projects
         '/projects':           (context) => const ProjectListScreen(),
         '/projects/new':       (context) => const CreateProjectScreen(),
         '/projects/detail':    (context) => const KanbanScreen(),
-
-        // Tasks
         '/tasks/detail':       (context) => const TaskDetailScreen(),
         '/tasks/new':          (context) => const CreateTaskScreen(),
-
-        // Other
         '/notifications':      (context) => const NotificationScreen(),
         '/chat':               (context) => const ChatScreen(),
         '/profile':            (context) => const ProfileScreen(),
@@ -115,9 +95,6 @@ class WellTaskApp extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MainShell – Bottom Navigation Bar kết nối 5 tab chính
-// ══════════════════════════════════════════════════════════════════════════════
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -128,7 +105,6 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  // Danh sách màn hình cho từng tab
   final List<Widget> _screens = const [
     DashboardScreen(),
     ProjectListScreen(),
@@ -136,6 +112,13 @@ class _MainShellState extends State<MainShell> {
     ChatScreen(),
     ProfileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Kiểm tra xem có lời mời dự án nào đang chờ xử lý hay không
+    DeepLinkService().checkPendingInvitation();
+  }
 
   @override
   Widget build(BuildContext context) {
