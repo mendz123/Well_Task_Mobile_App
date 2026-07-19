@@ -1,7 +1,93 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import '../../core/services/project_service.dart';
 
-class CreateProjectScreen extends StatelessWidget {
+class CreateProjectScreen extends StatefulWidget {
   const CreateProjectScreen({super.key});
+
+  @override
+  State<CreateProjectScreen> createState() => _CreateProjectScreenState();
+}
+
+class _CreateProjectScreenState extends State<CreateProjectScreen> {
+  final _nameController = TextEditingController();
+  final _repoUrlController = TextEditingController();
+  final _descController = TextEditingController();
+  
+  DateTime? _startDate;
+  DateTime? _endDate;
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _repoUrlController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectStartDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null && picked != _startDate) {
+      setState(() {
+        _startDate = picked;
+      });
+    }
+  }
+
+  Future<void> _selectEndDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null && picked != _endDate) {
+      setState(() {
+        _endDate = picked;
+      });
+    }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Select date';
+    return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
+  }
+
+  Future<void> _handleCreate() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập tên dự án')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    final result = await ProjectService.createProject(
+      name: name,
+      description: _descController.text.trim(),
+      repositoryUrl: _repoUrlController.text.trim().isEmpty ? null : _repoUrlController.text.trim(),
+      startDate: _startDate?.toIso8601String(),
+      endDate: _endDate?.toIso8601String(),
+    );
+
+    setState(() => _isSubmitting = false);
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Tạo dự án thất bại')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,59 +112,55 @@ class CreateProjectScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CustomTextField(
-                label: 'Project Name',
+              CustomTextField(
+                label: 'Project Name *',
                 hintText: 'Project Name (e.g., Graduation Thesis)',
+                controller: _nameController,
               ),
               const SizedBox(height: 24),
-              const CategorySelector(
-                label: 'Category',
-                categories: ['Study', 'Personal', 'Club', 'Research'],
-                activeIndex: 0,
+              CustomTextField(
+                label: 'Repository URL (GitHub/GitLab)',
+                hintText: 'https://github.com/username/repo',
+                controller: _repoUrlController,
               ),
               const SizedBox(height: 24),
-              const CustomTextField(
-                label: 'Project Goal',
+              CustomTextField(
+                label: 'Project Goal / Description',
                 hintText: 'Brief description of what you want to achieve...',
                 maxLines: 4,
+                controller: _descController,
               ),
               const SizedBox(height: 24),
               Row(
-                children: const [
+                children: [
                   Expanded(
                     child: DatePickerField(
                       label: 'Start Date',
-                      hintText: 'mm/dd/yyyy',
+                      valueText: _formatDate(_startDate),
+                      onTap: () => _selectStartDate(context),
                     ),
                   ),
-                  SizedBox(width: 16),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: DatePickerField(
                       label: 'Deadline',
-                      hintText: 'mm/dd/yyyy',
+                      valueText: _formatDate(_endDate),
+                      onTap: () => _selectEndDate(context),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              const Divider(color: Color(0xFFF3F0FF)),
-              const SizedBox(height: 24),
-              const MemberSection(
-                label: 'Members',
-                memberAvatars: [
-                  'https://i.pravatar.cc/100?img=12',
-                  'https://i.pravatar.cc/100?img=32',
-                ],
-                extraCount: 2,
-              ),
               const SizedBox(height: 40),
-              PrimaryButton(text: "Create Project", onPressed: () { Navigator.pop(context); },
-              ),
+              _isSubmitting
+                  ? const Center(child: CircularProgressIndicator())
+                  : PrimaryButton(
+                      text: "Create Project",
+                      onPressed: _handleCreate,
+                    ),
             ],
           ),
         ),
       ),
-      
     );
   }
 }
@@ -91,7 +173,12 @@ class CreateProjectAppBar extends StatelessWidget implements PreferredSizeWidget
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      leading: IconButton(icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1A1A)), onPressed: () { Navigator.pop(context); }),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1A1A)),
+        onPressed: () {
+          Navigator.pop(context);
+        },
+      ),
       centerTitle: true,
       title: const Text(
         'Create New Project',
@@ -112,12 +199,14 @@ class CustomTextField extends StatelessWidget {
   final String label;
   final String hintText;
   final int maxLines;
+  final TextEditingController? controller;
 
   const CustomTextField({
     super.key,
     required this.label,
     required this.hintText,
     this.maxLines = 1,
+    this.controller,
   });
 
   @override
@@ -128,6 +217,7 @@ class CustomTextField extends StatelessWidget {
         Text(label, style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 12),
         TextField(
+          controller: controller,
           maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hintText,
@@ -154,65 +244,17 @@ class CustomTextField extends StatelessWidget {
   }
 }
 
-class CategorySelector extends StatelessWidget {
-  final String label;
-  final List<String> categories;
-  final int activeIndex;
-
-  const CategorySelector({
-    super.key,
-    required this.label,
-    required this.categories,
-    required this.activeIndex,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          clipBehavior: Clip.none,
-          child: Row(
-            children: List.generate(categories.length, (index) {
-              final bool isActive = index == activeIndex;
-              return Container(
-                margin: const EdgeInsets.only(right: 12),
-                child: ChoiceChip(
-                  label: Text(categories[index]),
-                  selected: isActive,
-                  onSelected: (val) {},
-                  selectedColor: const Color(0xFF6C63FF),
-                  backgroundColor: const Color(0xFFF3F0FF),
-                  labelStyle: TextStyle(
-                    color: isActive ? Colors.white : const Color(0xFF1A1A1A),
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    fontSize: 13,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide.none,
-                  ),
-                  showCheckmark: false,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                ),
-              );
-            }),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class DatePickerField extends StatelessWidget {
   final String label;
-  final String hintText;
+  final String valueText;
+  final VoidCallback onTap;
 
-  const DatePickerField({super.key, required this.label, required this.hintText});
+  const DatePickerField({
+    super.key,
+    required this.label,
+    required this.valueText,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -221,90 +263,28 @@ class DatePickerField extends StatelessWidget {
       children: [
         Text(label, style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F0FF).withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.calendar_today_outlined, color: Color(0xFFB0B0B0), size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  hintText,
-                  style: const TextStyle(color: Color(0xFFB0B0B0), fontSize: 14),
-                ),
-              ),
-              const Icon(Icons.calendar_month, color: Color(0xFF1A1A1A), size: 18),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class MemberSection extends StatelessWidget {
-  final String label;
-  final List<String> memberAvatars;
-  final int extraCount;
-
-  const MemberSection({
-    super.key,
-    required this.label,
-    required this.memberAvatars,
-    required this.extraCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Row(
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F0FF).withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
               children: [
-                ...memberAvatars.map((url) => Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  child: CircleAvatar(
-                    radius: 18,
-                    backgroundImage: NetworkImage(url),
-                  ),
-                )),
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF3F0FF),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
+                const Icon(Icons.calendar_today_outlined, color: Color(0xFFB0B0B0), size: 20),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Text(
-                    '+$extraCount',
-                    style: const TextStyle(
-                      color: Color(0xFF6C63FF),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                    valueText,
+                    style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 14),
                   ),
                 ),
+                const Icon(Icons.calendar_month, color: Color(0xFF1A1A1A), size: 18),
               ],
             ),
-          ],
-        ),
-        TextButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.add, size: 20),
-          label: const Text('Add Members'),
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF6C63FF),
-            textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           ),
         ),
       ],
@@ -350,58 +330,6 @@ class PrimaryButton extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class CustomBottomNavBar extends StatelessWidget {
-  const CustomBottomNavBar({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.only(bottom: 24, top: 12),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFCF8FF),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
-          NavItem(icon: Icons.home_outlined, label: 'Home'),
-          NavItem(icon: Icons.grid_view_rounded, label: 'PROJECT', isActive: true),
-          NavItem(icon: Icons.notifications_none_rounded, label: 'Notifications'),
-          NavItem(icon: Icons.chat_bubble_outline_rounded, label: 'Chat'),
-          NavItem(icon: Icons.person_outline_rounded, label: 'Profile'),
-        ],
-      ),
-    );
-  }
-}
-
-class NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-
-  const NavItem({super.key, required this.icon, required this.label, this.isActive = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: isActive ? const Color(0xFF6C63FF) : const Color(0xFF1A1A1A)),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? const Color(0xFF6C63FF) : const Color(0xFF1A1A1A),
-          ),
-        ),
-      ],
     );
   }
 }
