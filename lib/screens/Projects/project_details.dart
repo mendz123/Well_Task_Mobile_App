@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../core/services/project_service.dart';
 
 class KanbanScreen extends StatefulWidget {
@@ -40,6 +40,7 @@ class _KanbanScreenState extends State<KanbanScreen> {
   void _showUpdateDialog() {
     final project = _projectData?['project'];
     final nameController = TextEditingController(text: project?['projectName']);
+    final repoUrlController = TextEditingController(text: project?['repositoryUrl']);
     final descController = TextEditingController(text: project?['description']);
     
     showDialog(
@@ -56,6 +57,14 @@ class _KanbanScreenState extends State<KanbanScreen> {
               ),
               const SizedBox(height: 12),
               TextField(
+                controller: repoUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'Repository URL',
+                  hintText: 'https://github.com/username/repo',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
                 controller: descController,
                 maxLines: 3,
                 decoration: const InputDecoration(labelText: 'Mô tả'),
@@ -67,16 +76,19 @@ class _KanbanScreenState extends State<KanbanScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               final res = await ProjectService.updateProject(projectId!, {
                 'projectName': nameController.text,
+                'repositoryUrl': repoUrlController.text.trim().isEmpty ? null : repoUrlController.text.trim(),
                 'description': descController.text,
                 'projectStatusId': project?['projectStatusId'], // Giữ nguyên status
                 'startDate': project?['startDate'],
                 'endDate': project?['endDate'],
               });
               if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'])));
+                navigator.pop();
+                scaffoldMessenger.showSnackBar(SnackBar(content: Text(res['message'] ?? 'Cập nhật thành công')));
                 _fetchProjectDetails();
               }
             },
@@ -228,6 +240,84 @@ class _KanbanScreenState extends State<KanbanScreen> {
                           Text(project?['statusName'] ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold)),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Icon(Icons.play_circle_outline, size: 16, color: Color(0xFF6C63FF)),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Ngày bắt đầu', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        project?['startDate'] != null
+                                            ? project!['startDate'].toString().split('T')[0]
+                                            : 'N/A',
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Icon(Icons.event_available_outlined, size: 16, color: Color(0xFFFF6B6B)),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Hạn hoàn thành', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        project?['endDate'] != null
+                                            ? project!['endDate'].toString().split('T')[0]
+                                            : 'N/A',
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (project?['repositoryUrl'] != null && (project!['repositoryUrl'] as String).trim().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.code_rounded, size: 18, color: Color(0xFF6C63FF)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Repository:', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                  const SizedBox(height: 2),
+                                  SelectableText(
+                                    project['repositoryUrl'],
+                                    style: const TextStyle(
+                                      color: Color(0xFF6C63FF),
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const Divider(height: 24),
                       Text(project?['description'] ?? 'Không có mô tả', style: const TextStyle(fontSize: 14)),
                     ],
