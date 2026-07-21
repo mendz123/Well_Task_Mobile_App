@@ -22,6 +22,35 @@ String _dateOnly(dynamic value) {
   return value.toString().split('T').first;
 }
 
+String _statusKey(dynamic value) {
+  return _text(value).toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+}
+
+const List<String> _fixedStatusOrder = ['todo', 'inprogress', 'done'];
+
+bool _isFixedStatus(dynamic value) {
+  return _fixedStatusOrder.contains(_statusKey(value));
+}
+
+List<dynamic> _fixedStatuses(List<dynamic> statuses) {
+  final filtered = statuses
+      .where(
+        (status) =>
+            _isFixedStatus(status['statusName'] ?? status['StatusName']),
+      )
+      .toList();
+  filtered.sort((a, b) {
+    return _fixedStatusOrder
+        .indexOf(_statusKey(a['statusName'] ?? a['StatusName']))
+        .compareTo(
+          _fixedStatusOrder.indexOf(
+            _statusKey(b['statusName'] ?? b['StatusName']),
+          ),
+        );
+  });
+  return filtered;
+}
+
 class TaskManagerScreen extends StatefulWidget {
   const TaskManagerScreen({super.key});
 
@@ -96,7 +125,9 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
 
     if (!mounted) return;
     final lookups = results[1] as Map<String, dynamic>;
-    final statuses = lookups['statuses'] as List<dynamic>? ?? [];
+    final statuses = _fixedStatuses(
+      lookups['statuses'] as List<dynamic>? ?? [],
+    );
 
     setState(() {
       _tasks = results[0] as List<dynamic>;
@@ -138,9 +169,20 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
 
   List<dynamic> get _visibleTasks {
     if (_selectedStatusId == null) return _tasks;
-    return _tasks
-        .where((task) => _taskStatusId(task) == _selectedStatusId)
-        .toList();
+    final selectedStatus = _statuses.firstWhere(
+      (status) => _statusId(status) == _selectedStatusId,
+      orElse: () => null,
+    );
+    final isToDo =
+        _statusKey(
+          selectedStatus?['statusName'] ?? selectedStatus?['StatusName'],
+        ) ==
+        'todo';
+    return _tasks.where((task) {
+      if (_taskStatusId(task) == _selectedStatusId) return true;
+      final taskStatusName = task['statusName'] ?? task['StatusName'];
+      return isToDo && !_isFixedStatus(taskStatusName);
+    }).toList();
   }
 
   List<dynamic> get _epics {
@@ -285,83 +327,6 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
     );
   }
 
-  Future<void> _showColumnDialog({dynamic status}) async {
-    final controller = TextEditingController(
-      text: status == null ? '' : _statusName(status),
-    );
-    final isEdit = status != null;
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isEdit ? 'Rename column' : 'Create column'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 50,
-          decoration: const InputDecoration(labelText: 'Column name'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-
-    if (result == null || result.isEmpty) return;
-    final response = isEdit
-        ? await TaskService.updateStatus(_statusId(status), result)
-        : await TaskService.createStatus(result);
-    if (response['success'] == true) {
-      await _loadBoard();
-    } else {
-      _snack(response['message'] ?? 'Could not save column');
-    }
-  }
-
-  Future<void> _deleteSelectedColumn() async {
-    final status = _statuses.firstWhere(
-      (item) => _statusId(item) == _selectedStatusId,
-      orElse: () => null,
-    );
-    if (status == null) return;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete column'),
-        content: Text(
-          'Delete "${_statusName(status)}"? The column must be empty.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    final response = await TaskService.deleteStatus(_statusId(status));
-    if (response['success'] == true) {
-      setState(() => _selectedStatusId = null);
-      await _loadBoard();
-    } else {
-      _snack(response['message'] ?? 'Could not delete column');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_projectId == null) {
@@ -384,7 +349,15 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
         body: _loadingProjects
             ? const Center(child: CircularProgressIndicator())
             : _projects.isEmpty
-            ? const Center(child: Text('No projects found.'))
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'Please create or join a project before using TaskManage.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              )
             : ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
@@ -482,30 +455,6 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
         ),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadBoard),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'add') _showColumnDialog();
-              if (value == 'rename') {
-                final status = _statuses.firstWhere(
-                  (item) => _statusId(item) == _selectedStatusId,
-                  orElse: () => null,
-                );
-                if (status != null) _showColumnDialog(status: status);
-              }
-              if (value == 'delete') _deleteSelectedColumn();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'add', child: Text('Add column')),
-              PopupMenuItem(
-                value: 'rename',
-                child: Text('Rename selected column'),
-              ),
-              PopupMenuItem(
-                value: 'delete',
-                child: Text('Delete selected column'),
-              ),
-            ],
-          ),
         ],
       ),
       body: _loading
