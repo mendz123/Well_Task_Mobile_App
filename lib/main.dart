@@ -67,12 +67,36 @@ class _WellTaskAppState extends State<WellTaskApp> {
         ),
         fontFamily: 'Inter',
         textTheme: const TextTheme(
-          displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
-          displaySmall: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-          headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-          headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-          titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-          titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          displayLarge: TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF6C63FF),
+          ),
+          displaySmall: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1A1A1A),
+          ),
+          headlineLarge: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1A1A1A),
+          ),
+          headlineMedium: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1A1A1A),
+          ),
+          titleLarge: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1A1A1A),
+          ),
+          titleMedium: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1A1A1A),
+          ),
           bodyLarge: TextStyle(fontSize: 14, color: Color(0xFF666666)),
           bodyMedium: TextStyle(fontSize: 13, color: Color(0xFF666666)),
         ),
@@ -80,18 +104,18 @@ class _WellTaskAppState extends State<WellTaskApp> {
       initialRoute: '/onboarding',
       routes: {
         '/onboarding': (context) => const OnboardingScreen(),
-        '/login':      (context) => const LoginScreen(),
-        '/register':   (context) => const RegisterScreen(),
-        '/home':               (context) => const MainShell(),
-        '/projects':           (context) => const ProjectListScreen(),
-        '/projects/new':       (context) => const CreateProjectScreen(),
-        '/projects/detail':    (context) => const KanbanScreen(),
-        '/tasks':              (context) => const TaskManagerScreen(),
-        '/tasks/detail':       (context) => const TaskDetailScreen(),
-        '/tasks/new':          (context) => const CreateTaskScreen(),
-        '/notifications':      (context) => const NotificationScreen(),
-        '/chat':               (context) => const ChatScreen(),
-        '/profile':            (context) => const ProfileScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/home': (context) => const MainShell(),
+        '/projects': (context) => const ProjectListScreen(),
+        '/projects/new': (context) => const CreateProjectScreen(),
+        '/projects/detail': (context) => const KanbanScreen(),
+        '/tasks': (context) => const TaskManagerScreen(),
+        '/tasks/detail': (context) => const TaskDetailScreen(),
+        '/tasks/new': (context) => const CreateTaskScreen(),
+        '/notifications': (context) => const NotificationScreen(),
+        '/chat': (context) => const ChatScreen(),
+        '/profile': (context) => const ProfileScreen(),
       },
     );
   }
@@ -125,10 +149,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
@@ -150,12 +171,18 @@ class _MainShellState extends State<MainShell> {
           ),
           NavigationDestination(
             icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications_rounded, color: Color(0xFF6C63FF)),
+            selectedIcon: Icon(
+              Icons.notifications_rounded,
+              color: Color(0xFF6C63FF),
+            ),
             label: 'Alerts',
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline_rounded),
-            selectedIcon: Icon(Icons.chat_bubble_rounded, color: Color(0xFF6C63FF)),
+            selectedIcon: Icon(
+              Icons.chat_bubble_rounded,
+              color: Color(0xFF6C63FF),
+            ),
             label: 'Chat',
           ),
           NavigationDestination(

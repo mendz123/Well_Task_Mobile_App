@@ -1,53 +1,384 @@
 import 'package:flutter/material.dart';
-
+import '../../core/services/user_service.dart';
 import '../../core/services/auth_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isLoading = true;
+  Map<String, dynamic>? _userProfile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+    final res = await UserService.getProfile();
+    if (!mounted) return;
+
+    if (res['success'] == true) {
+      setState(() {
+        _userProfile = res['data'];
+        _isLoading = false;
+      });
+    } else {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res['message'] ?? 'Unable to load profile')),
+      );
+    }
+  }
+
+  void _showEditProfileDialog() {
+    final nameController = TextEditingController(
+      text: _userProfile?['fullName'] ?? _userProfile?['name'] ?? '',
+    );
+    final bioController = TextEditingController(
+      text: _userProfile?['bio'] ?? '',
+    );
+    final phoneController = TextEditingController(
+      text: _userProfile?['phoneNumber'] ?? _userProfile?['phone'] ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        bool isUpdating = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                'Edit Profile',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: bioController,
+                      decoration: const InputDecoration(
+                        labelText: 'Bio',
+                        prefixIcon: Icon(Icons.info_outline),
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6C63FF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: isUpdating
+                      ? null
+                      : () async {
+                          setDialogState(() => isUpdating = true);
+                          final res = await UserService.updateProfile(
+                            fullName: nameController.text.trim(),
+                            bio: bioController.text.trim(),
+                            phoneNumber: phoneController.text.trim(),
+                          );
+                          if (!mounted) return;
+                          setDialogState(() => isUpdating = false);
+                          Navigator.pop(context);
+
+                          if (res['success'] == true) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Profile updated successfully!'),
+                              ),
+                            );
+                            _loadProfile();
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  res['message'] ?? 'Failed to update profile',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: isUpdating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final currentPassController = TextEditingController();
+    final newPassController = TextEditingController();
+    final confirmPassController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        bool isSubmitting = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                'Change Password',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: currentPassController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Current Password',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newPassController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'New Password',
+                        prefixIcon: Icon(Icons.lock_reset_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmPassController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm New Password',
+                        prefixIcon: Icon(Icons.check_circle_outline),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6C63FF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final currentPass = currentPassController.text;
+                          final newPass = newPassController.text;
+                          final confirmPass = confirmPassController.text;
+
+                          if (currentPass.isEmpty ||
+                              newPass.isEmpty ||
+                              confirmPass.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Please fill all password fields',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          if (newPass != confirmPass) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('New passwords do not match'),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => isSubmitting = true);
+                          final res = await UserService.changePassword(
+                            currentPassword: currentPass,
+                            newPassword: newPass,
+                            confirmPassword: confirmPass,
+                          );
+                          if (!mounted) return;
+                          setDialogState(() => isSubmitting = false);
+                          Navigator.pop(context);
+
+                          if (res['success'] == true) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  res['message'] ??
+                                      'Password changed successfully!',
+                                ),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  res['message'] ?? 'Failed to change password',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _handleLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final name =
+        _userProfile?['fullName'] ??
+        _userProfile?['name'] ??
+        _userProfile?['userName'] ??
+        'User';
+    final email = _userProfile?['email'] ?? 'No email provided';
+    final bio =
+        _userProfile?['bio'] ??
+        _userProfile?['description'] ??
+        'No bio added yet.';
+    final phone =
+        _userProfile?['phoneNumber'] ?? _userProfile?['phone'] ?? 'Not set';
+    final joinDate = _userProfile?['createdAt'] != null
+        ? _userProfile!['createdAt'].toString().split('T')[0]
+        : (_userProfile?['joinDate'] ?? 'N/A');
+    final avatarUrl =
+        _userProfile?['avatarUrl'] ?? 'https://i.pravatar.cc/100?img=12';
+
     return Scaffold(
       backgroundColor: const Color(0xFFFCF8FF),
-      appBar: const ProfileAppBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            const ProfileHeaderCard(
-              name: 'Minh T.',
-              email: 'minh.t@university.edu',
-              joinDate: '15/08/2023',
-              avatarUrl: 'https://i.pravatar.cc/100?img=12',
+      appBar: ProfileAppBar(onRefresh: _loadProfile),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6C63FF)),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadProfile,
+              color: const Color(0xFF6C63FF),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  children: [
+                    ProfileHeaderCard(
+                      name: name,
+                      email: email,
+                      joinDate: joinDate,
+                      avatarUrl: avatarUrl,
+                      onEditPressed: _showEditProfileDialog,
+                    ),
+                    const SizedBox(height: 24),
+                    PersonalInfoSection(
+                      bio: bio,
+                      phone: phone,
+                      onEditPressed: _showEditProfileDialog,
+                    ),
+                    const SizedBox(height: 24),
+                    const SkillsSection(
+                      skills: ['Flutter', 'UI/UX', 'REST API'],
+                    ),
+                    const SizedBox(height: 32),
+                    PrimaryOutlineButton(
+                      text: 'Change Password',
+                      icon: Icons.lock_reset_rounded,
+                      onPressed: _showChangePasswordDialog,
+                    ),
+                    const SizedBox(height: 12),
+                    LogoutButton(onLogout: _handleLogout),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 24),
-            const PersonalInfoSection(
-              bio:
-                  '3rd year Computer Science student. Passionate about UI Design & Coding.',
-              phone: '0987 654 321',
-            ),
-            const SizedBox(height: 24),
-            const SkillsSection(
-              skills: ['Flutter', 'UI/UX', 'Python', 'Figma'],
-            ),
-            const SizedBox(height: 32),
-            PrimaryOutlineButton(
-              text: 'Change Password',
-              icon: Icons.history_rounded,
-              onPressed: () {},
-            ),
-            const SizedBox(height: 12),
-            const LogoutButton(),
-            const SizedBox(height: 100), // Space for bottom nav
-          ],
-        ),
-      ),
     );
   }
 }
 
 class ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const ProfileAppBar({super.key});
+  final VoidCallback onRefresh;
+  const ProfileAppBar({super.key, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -79,8 +410,9 @@ class ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.settings_outlined, color: Color(0xFF6C63FF)),
-          onPressed: () {},
+          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF6C63FF)),
+          onPressed: onRefresh,
+          tooltip: 'Refresh Profile',
         ),
       ],
     );
@@ -95,6 +427,7 @@ class ProfileHeaderCard extends StatelessWidget {
   final String email;
   final String joinDate;
   final String avatarUrl;
+  final VoidCallback onEditPressed;
 
   const ProfileHeaderCard({
     super.key,
@@ -102,6 +435,7 @@ class ProfileHeaderCard extends StatelessWidget {
     required this.email,
     required this.joinDate,
     required this.avatarUrl,
+    required this.onEditPressed,
   });
 
   @override
@@ -135,16 +469,19 @@ class ProfileHeaderCard extends StatelessWidget {
               Positioned(
                 right: 0,
                 bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF6C63FF),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.edit_rounded,
-                    color: Colors.white,
-                    size: 18,
+                child: GestureDetector(
+                  onTap: onEditPressed,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF6C63FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.edit_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
               ),
@@ -171,7 +508,7 @@ class ProfileHeaderCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Joined since: $joinDate',
+                  'Joined: $joinDate',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF666666),
@@ -190,11 +527,13 @@ class ProfileHeaderCard extends StatelessWidget {
 class PersonalInfoSection extends StatelessWidget {
   final String bio;
   final String phone;
+  final VoidCallback onEditPressed;
 
   const PersonalInfoSection({
     super.key,
     required this.bio,
     required this.phone,
+    required this.onEditPressed,
   });
 
   @override
@@ -210,11 +549,25 @@ class PersonalInfoSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Personal Information',
-            style: Theme.of(context).textTheme.titleLarge,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Personal Information',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  size: 20,
+                  color: Color(0xFF6C63FF),
+                ),
+                onPressed: onEditPressed,
+                tooltip: 'Edit Profile',
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           const LabelText(label: 'Bio'),
           const SizedBox(height: 8),
           Container(
@@ -246,26 +599,6 @@ class PersonalInfoSection extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(phone, style: Theme.of(context).textTheme.bodyMedium),
               ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: 140,
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE8E4FF),
-                foregroundColor: const Color(0xFF6C63FF),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Text(
-                'Save Changes',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
             ),
           ),
         ],
@@ -331,8 +664,6 @@ class SkillsSection extends StatelessWidget {
                 .map(
                   (skill) => Chip(
                     label: Text(skill),
-                    onDeleted: () {},
-                    deleteIcon: const Icon(Icons.close, size: 14),
                     backgroundColor: const Color(0xFFF3F0FF),
                     side: BorderSide.none,
                     shape: RoundedRectangleBorder(
@@ -399,7 +730,8 @@ class PrimaryOutlineButton extends StatelessWidget {
 }
 
 class LogoutButton extends StatelessWidget {
-  const LogoutButton({super.key});
+  final VoidCallback onLogout;
+  const LogoutButton({super.key, required this.onLogout});
 
   @override
   Widget build(BuildContext context) {
@@ -407,15 +739,7 @@ class LogoutButton extends StatelessWidget {
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: () async {
-          await AuthService.logout();
-          if (!context.mounted) return;
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/login',
-            (route) => false,
-          );
-        },
+        onPressed: onLogout,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFFEBEB),
           foregroundColor: const Color(0xFFD32F2F),
@@ -436,79 +760,6 @@ class LogoutButton extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class CustomBottomNavBar extends StatelessWidget {
-  const CustomBottomNavBar({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.only(bottom: 24, top: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
-          NavItem(icon: Icons.home_outlined, label: 'Home'),
-          NavItem(icon: Icons.folder_outlined, label: 'PROJECT'),
-          NavItem(
-            icon: Icons.notifications_none_rounded,
-            label: 'Notifications',
-          ),
-          NavItem(icon: Icons.chat_bubble_outline_rounded, label: 'Chat'),
-          NavItem(icon: Icons.person_rounded, label: 'Profile', isActive: true),
-        ],
-      ),
-    );
-  }
-}
-
-class NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-
-  const NavItem({
-    super.key,
-    required this.icon,
-    required this.label,
-    this.isActive = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: isActive
-              ? BoxDecoration(
-                  color: const Color(0xFFF3F0FF),
-                  borderRadius: BorderRadius.circular(16),
-                )
-              : null,
-          child: Icon(
-            icon,
-            color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0),
-          ),
-        ),
-      ],
     );
   }
 }
