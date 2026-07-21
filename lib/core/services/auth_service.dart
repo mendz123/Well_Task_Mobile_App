@@ -2,11 +2,21 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
-
 class AuthService {
   static const String keyAccessToken = 'AccessToken';
   static const String keyUserEmail = 'UserEmail';
-
+  static const String keyUserId = 'UserId';
+  static const String keyUserName = 'UserName';
+  /// Get stored userId
+  static Future<int> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(keyUserId) ?? 0;
+  }
+  /// Get stored display name
+  static Future<String> getUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(keyUserName) ?? 'User';
+  }
   /// Register a new user
   static Future<Map<String, dynamic>> register({
     required String fullName,
@@ -23,7 +33,6 @@ class AuthService {
           'password': password,
         }),
       );
-
       if (response.statusCode == 201 || response.statusCode == 200) {
         return {'success': true, 'data': jsonDecode(response.body)};
       } else {
@@ -34,7 +43,6 @@ class AuthService {
       return {'success': false, 'message': e.toString()};
     }
   }
-
   /// Login a user and save tokens
   static Future<Map<String, dynamic>> login({
     required String email,
@@ -49,14 +57,22 @@ class AuthService {
           'password': password,
         }),
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         final prefs = await SharedPreferences.getInstance();
         if (data['accessToken'] != null) {
           await prefs.setString(keyAccessToken, data['accessToken']);
           await prefs.setString(keyUserEmail, email);
+          // Save userId and name from login response
+          if (data['userId'] != null) {
+            await prefs.setInt(keyUserId, (data['userId'] as num).toInt());
+          }
+          if (data['fullName'] != null) {
+            await prefs.setString(keyUserName, data['fullName'].toString());
+          } else {
+            await prefs.setString(keyUserName, email.split('@').first);
+          }
           return {'success': true, 'data': data};
         } else {
           return {'success': false, 'message': 'Token missing in response'};
@@ -75,14 +91,14 @@ class AuthService {
       return {'success': false, 'message': e.toString()};
     }
   }
-
   /// Logout user
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(keyAccessToken);
     await prefs.remove(keyUserEmail);
+    await prefs.remove(keyUserId);
+    await prefs.remove(keyUserName);
   }
-
   /// Check if user is logged in
   static Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();

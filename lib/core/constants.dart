@@ -1,9 +1,14 @@
 class ApiConstants {
   // Use 10.0.2.2 for Android Emulator to connect to localhost on the host machine.
   // Use localhost (127.0.0.1) for iOS Simulator or Web.
-  // Change to your machine's LAN IP if testing on a physical device.
-  // The backend uses port 5018 for HTTP and 7297 for HTTPS. We use HTTP for local dev to avoid certificate issues.
-  static const String baseUrl = 'http://10.0.2.2:5018/api';
+  // Change to your machine's LAN IP if testing on a physical device, or use Ngrok URL.
+  // The backend uses port 5018 for HTTP. We use HTTP for local dev to avoid certificate issues.
+  static const String baseHost = 'http://192.168.1.42:5018';
+  static const String baseUrl = '$baseHost/api';
+  static const String hubUrl = '$baseHost/chatHub';
+
+  // Chat Endpoints
+  static String chatHistory(int projectId) => '$baseUrl/chat/$projectId/history';
 
   // Auth Endpoints
   static const String login = '$baseUrl/auth/login';
