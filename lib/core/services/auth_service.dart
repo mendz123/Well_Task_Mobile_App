@@ -25,10 +25,28 @@ class AuthService {
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        return {'success': true, 'data': jsonDecode(response.body)};
+        dynamic responseData;
+        if (response.body.isNotEmpty) {
+          try {
+            responseData = jsonDecode(response.body);
+          } catch (_) {
+            responseData = response.body;
+          }
+        }
+        return {'success': true, 'data': responseData};
       } else {
-        final err = jsonDecode(response.body);
-        return {'success': false, 'message': err['message'] ?? 'Registration failed'};
+        var message = 'Registration failed';
+        try {
+          final err = jsonDecode(response.body);
+          if (err['message'] != null) {
+            message = err['message'];
+          } else if (err['title'] != null) {
+            message = err['title'];
+          }
+        } catch (_) {
+          if (response.body.isNotEmpty) message = response.body;
+        }
+        return {'success': false, 'message': message};
       }
     } catch (e) {
       return {'success': false, 'message': e.toString()};
@@ -52,10 +70,11 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+        final token = data['accessToken'] ?? data['token'];
+
         final prefs = await SharedPreferences.getInstance();
-        if (data['accessToken'] != null) {
-          await prefs.setString(keyAccessToken, data['accessToken']);
+        if (token != null) {
+          await prefs.setString(keyAccessToken, token);
           await prefs.setString(keyUserEmail, email);
           return {'success': true, 'data': data};
         } else {
@@ -67,8 +86,12 @@ class AuthService {
           final err = jsonDecode(response.body);
           if (err['message'] != null) {
             message = err['message'];
+          } else if (err['title'] != null) {
+            message = err['title'];
           }
-        } catch (_) {}
+        } catch (_) {
+          if (response.body.isNotEmpty) message = response.body;
+        }
         return {'success': false, 'message': message};
       }
     } catch (e) {
