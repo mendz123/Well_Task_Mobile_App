@@ -6,6 +6,20 @@ import '../constants.dart';
 class AuthService {
   static const String keyAccessToken = 'AccessToken';
   static const String keyUserEmail = 'UserEmail';
+  static const String keyUserId = 'UserId';
+  static const String keyUserName = 'UserName';
+
+  /// Get stored userId
+  static Future<int> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(keyUserId) ?? 0;
+  }
+
+  /// Get stored display name
+  static Future<String> getUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(keyUserName) ?? 'User';
+  }
 
   /// Register a new user
   static Future<Map<String, dynamic>> register({
@@ -23,7 +37,6 @@ class AuthService {
           'password': password,
         }),
       );
-
       if (response.statusCode == 201 || response.statusCode == 200) {
         dynamic responseData;
         if (response.body.isNotEmpty) {
@@ -64,7 +77,6 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final token = data['accessToken'] ?? data['token'];
@@ -73,6 +85,15 @@ class AuthService {
         if (token != null) {
           await prefs.setString(keyAccessToken, token);
           await prefs.setString(keyUserEmail, email);
+          // Save userId and name from login response
+          if (data['userId'] != null) {
+            await prefs.setInt(keyUserId, (data['userId'] as num).toInt());
+          }
+          if (data['fullName'] != null) {
+            await prefs.setString(keyUserName, data['fullName'].toString());
+          } else {
+            await prefs.setString(keyUserName, email.split('@').first);
+          }
           return {'success': true, 'data': data};
         } else {
           return {'success': false, 'message': 'Token missing in response'};
@@ -101,6 +122,8 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(keyAccessToken);
     await prefs.remove(keyUserEmail);
+    await prefs.remove(keyUserId);
+    await prefs.remove(keyUserName);
   }
 
   /// Check if user is logged in
