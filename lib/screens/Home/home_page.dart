@@ -13,7 +13,11 @@ class DashboardScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const WelcomeHeader(name: 'Minh', avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200'),
+              const WelcomeHeader(
+                name: 'Minh',
+                avatarUrl:
+                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+              ),
               const SizedBox(height: 24),
               const SummaryCardsRow(),
               const SizedBox(height: 32),
@@ -29,7 +33,6 @@ class DashboardScreen extends StatelessWidget {
           ),
         ),
       ),
-      
     );
   }
 }
@@ -47,16 +50,19 @@ class WelcomeHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundImage: NetworkImage(avatarUrl),
-            ),
+            CircleAvatar(radius: 24, backgroundImage: NetworkImage(avatarUrl)),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Good morning,', style: Theme.of(context).textTheme.bodyMedium),
-                Text('$name! 👋', style: Theme.of(context).textTheme.headlineMedium),
+                Text(
+                  'Good morning,',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                Text(
+                  '$name! 👋',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
               ],
             ),
           ],
@@ -97,12 +103,13 @@ class SummaryCardsRow extends StatelessWidget {
         const SizedBox(height: 12),
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: SummaryCard(
                 title: "TODAY'S TASKS",
                 count: '12',
                 icon: Icons.check_circle_outline_rounded,
                 color: Color(0xFF4ECDC4),
+                onTap: () => Navigator.pushNamed(context, '/tasks'),
               ),
             ),
             const SizedBox(width: 12),
@@ -127,6 +134,7 @@ class SummaryCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool isFullWidth;
+  final VoidCallback? onTap;
 
   const SummaryCard({
     super.key,
@@ -135,102 +143,116 @@ class SummaryCard extends StatelessWidget {
     required this.icon,
     required this.color,
     this.isFullWidth = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    Widget wrapTap(Widget child) {
+      if (onTap == null) return child;
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: child,
+      );
+    }
+
     if (isFullWidth) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+      return wrapTap(
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
               ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              Text(
+                count,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return wrapTap(
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.1)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  Text(
+                    count,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: color,
                   letterSpacing: 0.5,
                 ),
               ),
-            ),
-            Text(
-              count,
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.1)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                Text(
-                  count,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                color: color,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -241,7 +263,11 @@ class SectionHeader extends StatelessWidget {
   final String title;
   final String actionText;
 
-  const SectionHeader({super.key, required this.title, required this.actionText});
+  const SectionHeader({
+    super.key,
+    required this.title,
+    required this.actionText,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -257,7 +283,10 @@ class SectionHeader extends StatelessWidget {
           },
           child: Text(
             actionText,
-            style: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Color(0xFF6C63FF),
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
@@ -335,71 +364,115 @@ class ProjectCard extends StatelessWidget {
             ),
           ],
         ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    tag,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                child: Text(tag, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-              const Icon(Icons.more_vert, color: Color(0xFFB0B0B0)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(title, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.calendar_today_outlined, size: 14, color: Color(0xFFB0B0B0)),
-              const SizedBox(width: 4),
-              Text(date, style: const TextStyle(color: Color(0xFFB0B0B0), fontSize: 12)),
-            ],
-          ),
-          const Spacer(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Progress', style: TextStyle(color: Color(0xFF666666), fontSize: 12)),
-              Text('${(progress * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: color.withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-              minHeight: 6,
+                const Icon(Icons.more_vert, color: Color(0xFFB0B0B0)),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const MemberAvatarsRow(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0F7F6),
-                  borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 14,
+                  color: Color(0xFFB0B0B0),
                 ),
-                child: const Text('Active', style: TextStyle(color: Color(0xFF4ECDC4), fontSize: 10, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 4),
+                Text(
+                  date,
+                  style: const TextStyle(
+                    color: Color(0xFFB0B0B0),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Progress',
+                  style: TextStyle(color: Color(0xFF666666), fontSize: 12),
+                ),
+                Text(
+                  '${(progress * 100).toInt()}%',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: color.withValues(alpha: 0.1),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+                minHeight: 6,
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const MemberAvatarsRow(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F7F6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Active',
+                    style: TextStyle(
+                      color: Color(0xFF4ECDC4),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 class MemberAvatarsRow extends StatelessWidget {
@@ -417,7 +490,9 @@ class MemberAvatarsRow extends StatelessWidget {
               backgroundColor: Colors.white,
               child: CircleAvatar(
                 radius: 10,
-                backgroundImage: NetworkImage('https://i.pravatar.cc/100?img=${i + 10}'),
+                backgroundImage: NetworkImage(
+                  'https://i.pravatar.cc/100?img=${i + 10}',
+                ),
               ),
             ),
           ),
@@ -429,7 +504,14 @@ class MemberAvatarsRow extends StatelessWidget {
             child: CircleAvatar(
               radius: 10,
               backgroundColor: const Color(0xFFF3F0FF),
-              child: const Text('+2', style: TextStyle(fontSize: 8, color: Color(0xFF6C63FF), fontWeight: FontWeight.bold)),
+              child: const Text(
+                '+2',
+                style: TextStyle(
+                  fontSize: 8,
+                  color: Color(0xFF6C63FF),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ),
@@ -514,80 +596,105 @@ class TaskItem extends StatelessWidget {
           ],
         ),
         child: Row(
-        children: [
-          Checkbox(
-            value: isDone,
-            onChanged: (val) {},
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            activeColor: const Color(0xFF6C63FF),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    decoration: isDone ? TextDecoration.lineThrough : null,
-                    color: isDone ? const Color(0xFFB0B0B0) : const Color(0xFF1A1A1A),
+          children: [
+            Checkbox(
+              value: isDone,
+              onChanged: (val) {},
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+              activeColor: const Color(0xFF6C63FF),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      decoration: isDone ? TextDecoration.lineThrough : null,
+                      color: isDone
+                          ? const Color(0xFFB0B0B0)
+                          : const Color(0xFF1A1A1A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F0FF),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        project,
-                        style: const TextStyle(fontSize: 10, color: Color(0xFF6C63FF)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.access_time, size: 12, color: Color(0xFFFF6B6B)),
-                        const SizedBox(width: 4),
-                        Text(
-                          deadline,
-                          style: const TextStyle(fontSize: 10, color: Color(0xFFFF6B6B), fontWeight: FontWeight.bold),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
                         ),
-                      ],
-                    ),
-                  ],
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F0FF),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          project,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Color(0xFF6C63FF),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.access_time,
+                            size: 12,
+                            color: Color(0xFFFF6B6B),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            deadline,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFFFF6B6B),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: priorityColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                priority,
+                style: TextStyle(
+                  color: priorityColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
+              ),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: priorityColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+            const SizedBox(width: 12),
+            const CircleAvatar(
+              radius: 12,
+              backgroundImage: NetworkImage('https://i.pravatar.cc/100?img=33'),
             ),
-            child: Text(priority, style: TextStyle(color: priorityColor, fontSize: 10, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(width: 12),
-          const CircleAvatar(
-            radius: 12,
-            backgroundImage: NetworkImage('https://i.pravatar.cc/100?img=33'),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 class CustomBottomNavBar extends StatelessWidget {
@@ -600,9 +707,7 @@ class CustomBottomNavBar extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 20),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -623,7 +728,12 @@ class NavItem extends StatelessWidget {
   final String label;
   final bool isActive;
 
-  const NavItem({super.key, required this.icon, required this.label, this.isActive = false});
+  const NavItem({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.isActive = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -632,11 +742,16 @@ class NavItem extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: isActive ? BoxDecoration(
-            color: const Color(0xFFF3F0FF),
-            borderRadius: BorderRadius.circular(16),
-          ) : null,
-          child: Icon(icon, color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0)),
+          decoration: isActive
+              ? BoxDecoration(
+                  color: const Color(0xFFF3F0FF),
+                  borderRadius: BorderRadius.circular(16),
+                )
+              : null,
+          child: Icon(
+            icon,
+            color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0),
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -651,4 +766,3 @@ class NavItem extends StatelessWidget {
     );
   }
 }
- 

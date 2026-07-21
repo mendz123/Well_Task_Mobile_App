@@ -17,6 +17,7 @@ import 'screens/Projects/create_new_project.dart';
 // ── Task Manager ──────────────────────────────────────────────────────────────
 import 'screens/TaskManager/task_details.dart';
 import 'screens/TaskManager/create_task.dart';
+import 'screens/TaskManager/view_task.dart';
 
 // ── Other tabs ────────────────────────────────────────────────────────────────
 import 'screens/Noti/notification.dart';
@@ -85,6 +86,7 @@ class _WellTaskAppState extends State<WellTaskApp> {
         '/projects':           (context) => const ProjectListScreen(),
         '/projects/new':       (context) => const CreateProjectScreen(),
         '/projects/detail':    (context) => const KanbanScreen(),
+        '/tasks':              (context) => const TaskManagerScreen(),
         '/tasks/detail':       (context) => const TaskDetailScreen(),
         '/tasks/new':          (context) => const CreateTaskScreen(),
         '/notifications':      (context) => const NotificationScreen(),

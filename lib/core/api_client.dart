@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/auth_service.dart';
@@ -30,6 +30,15 @@ class ApiClient {
   static Future<http.Response> put(String url, dynamic body) async {
     final headers = await _getHeaders();
     return await http.put(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+  }
+
+  static Future<http.Response> patch(String url, dynamic body) async {
+    final headers = await _getHeaders();
+    return await http.patch(
       Uri.parse(url),
       headers: headers,
       body: jsonEncode(body),

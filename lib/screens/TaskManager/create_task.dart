@@ -1,525 +1,502 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import '../../core/services/task_service.dart';
 
-class CreateTaskScreen extends StatelessWidget {
+const Color _primary = Color(0xFF6C63FF);
+const Color _surface = Color(0xFFFCF8FF);
+const Color _softBorder = Color(0xFFF3F0FF);
+
+int? _asInt(dynamic value) {
+  if (value == null || value.toString().isEmpty) return null;
+  if (value is int) return value;
+  return int.tryParse(value.toString());
+}
+
+String _text(dynamic value, [String fallback = '']) {
+  final text = value?.toString() ?? '';
+  return text.trim().isEmpty ? fallback : text;
+}
+
+class CreateTaskScreen extends StatefulWidget {
   const CreateTaskScreen({super.key});
+
+  @override
+  State<CreateTaskScreen> createState() => _CreateTaskScreenState();
+}
+
+class _CreateTaskScreenState extends State<CreateTaskScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _estimateController = TextEditingController();
+
+  bool _initialized = false;
+  bool _loadingLookups = false;
+  bool _saving = false;
+  bool _isEdit = false;
+  int? _projectId;
+  Map<String, dynamic>? _task;
+  List<dynamic> _statuses = [];
+  List<dynamic> _priorities = [];
+  List<dynamic> _members = [];
+  List<dynamic> _epics = [];
+  int? _statusId;
+  int? _priorityId;
+  int? _assigneeId;
+  int? _parentTaskId;
+  DateTime? _dueDate;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _estimateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      _projectId = _asInt(args['projectId']);
+      _isEdit = args['mode'] == 'edit';
+      _task = args['task'] is Map<String, dynamic>
+          ? args['task'] as Map<String, dynamic>
+          : null;
+      _statuses = args['statuses'] as List<dynamic>? ?? [];
+      _priorities = args['priorities'] as List<dynamic>? ?? [];
+      _members = args['members'] as List<dynamic>? ?? [];
+      _epics = args['epics'] as List<dynamic>? ?? [];
+    }
+
+    _hydrateTask();
+    if (_projectId != null && (_statuses.isEmpty || _priorities.isEmpty)) {
+      _loadLookups();
+    }
+  }
+
+  void _hydrateTask() {
+    final task = _task;
+    if (task == null) return;
+
+    _titleController.text = _text(task['title'] ?? task['Title']);
+    _descriptionController.text = _text(
+      task['description'] ?? task['Description'],
+    );
+    _estimateController.text = _text(
+      task['estimateHours'] ?? task['EstimateHours'],
+    );
+    _statusId = _asInt(task['taskStatusId'] ?? task['TaskStatusId']);
+    _priorityId = _asInt(task['priorityId'] ?? task['PriorityId']);
+    _assigneeId = _asInt(task['assigneeId'] ?? task['AssigneeId']);
+    _parentTaskId = _asInt(task['parentTaskId'] ?? task['ParentTaskId']);
+
+    final due = task['dueDate'] ?? task['DueDate'];
+    if (due != null) _dueDate = DateTime.tryParse(due.toString());
+  }
+
+  Future<void> _loadLookups() async {
+    setState(() => _loadingLookups = true);
+    final lookups = await TaskService.getLookups(_projectId!);
+    final tasks = await TaskService.getTasksByProject(_projectId!);
+    if (!mounted) return;
+    setState(() {
+      _statuses = lookups['statuses'] as List<dynamic>? ?? [];
+      _priorities = lookups['priorities'] as List<dynamic>? ?? [];
+      _members = lookups['members'] as List<dynamic>? ?? [];
+      _epics = tasks
+          .where(
+            (task) =>
+                _asInt(task['parentTaskId'] ?? task['ParentTaskId']) == null,
+          )
+          .toList();
+      _statusId ??= _statuses.isNotEmpty ? _statusIdOf(_statuses.first) : null;
+      _priorityId ??= _priorities.isNotEmpty
+          ? _priorityIdOf(_priorities.first)
+          : null;
+      _loadingLookups = false;
+    });
+  }
+
+  int _statusIdOf(dynamic item) =>
+      _asInt(item['taskStatusId'] ?? item['TaskStatusId']) ?? 0;
+  int _priorityIdOf(dynamic item) =>
+      _asInt(item['priorityId'] ?? item['PriorityId']) ?? 0;
+  int _memberIdOf(dynamic item) =>
+      _asInt(item['userId'] ?? item['UserId']) ?? 0;
+  int _taskIdOf(dynamic item) => _asInt(item['taskId'] ?? item['TaskId']) ?? 0;
+
+  String _statusName(dynamic item) =>
+      _text(item['statusName'] ?? item['StatusName'], 'Status');
+  String _priorityName(dynamic item) =>
+      _text(item['priorityName'] ?? item['PriorityName'], 'Priority');
+  String _memberName(dynamic item) => _text(
+    item['fullName'] ?? item['FullName'] ?? item['email'] ?? item['Email'],
+    'Member',
+  );
+  String _epicTitle(dynamic item) =>
+      _text(item['title'] ?? item['Title'], 'Untitled epic');
+
+  DateTime get _today {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  String? _validateDueDate() {
+    if (_dueDate == null) return 'Due date is required.';
+    final picked = DateTime(_dueDate!.year, _dueDate!.month, _dueDate!.day);
+    if (picked.isBefore(_today)) return 'Due date cannot be in the past.';
+    return null;
+  }
+
+  Future<void> _pickDueDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueDate == null || _dueDate!.isBefore(_today)
+          ? _today
+          : _dueDate!,
+      firstDate: _today,
+      lastDate: DateTime(_today.year + 10),
+    );
+    if (picked != null) setState(() => _dueDate = picked);
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final dueError = _validateDueDate();
+    if (dueError != null) {
+      _showMessage(dueError);
+      return;
+    }
+
+    if (_statusId == null || _priorityId == null || _projectId == null) {
+      _showMessage('Status and priority are required.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    final estimateText = _estimateController.text.trim();
+    final dueIso = DateTime(
+      _dueDate!.year,
+      _dueDate!.month,
+      _dueDate!.day,
+    ).toIso8601String();
+    final payload = {
+      'title': _titleController.text.trim(),
+      'description': _descriptionController.text.trim(),
+      'parentTaskId': _parentTaskId,
+      'taskStatusId': _statusId,
+      'priorityId': _priorityId,
+      'dueDate': dueIso,
+      'estimateHours': estimateText.isEmpty
+          ? null
+          : double.tryParse(estimateText),
+    };
+
+    Map<String, dynamic> result;
+    if (_isEdit && _task != null) {
+      result = await TaskService.updateTask(_taskIdOf(_task), {
+        ...payload,
+        'clearParentTask': _parentTaskId == null,
+        'clearDueDate': false,
+      });
+
+      if (result['success'] == true) {
+        final currentAssigneeId = _asInt(
+          _task?['assigneeId'] ?? _task?['AssigneeId'],
+        );
+        if (currentAssigneeId != _assigneeId) {
+          if (_assigneeId == null) {
+            result = await TaskService.unassignTask(_taskIdOf(_task));
+          } else {
+            result = await TaskService.assignTask(
+              _taskIdOf(_task),
+              _assigneeId!,
+            );
+          }
+        }
+      }
+    } else {
+      result = await TaskService.createTask({
+        ...payload,
+        'projectId': _projectId,
+        'assigneeId': _assigneeId,
+      });
+    }
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (result['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      _showMessage(result['message'] ?? 'Could not save task.');
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFCF8FF),
-      appBar: const CreateTaskAppBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const CustomTextField(
-              label: 'Task Name',
-              hintText: 'Design Logo',
-              isLarge: true,
-            ),
-            const SizedBox(height: 24),
-            const ProjectDropdown(
-              label: 'PROJECT',
-              projectName: 'Graduation Thesis',
-            ),
-            const SizedBox(height: 24),
-            const StatusSelector(
-              label: 'STATUS',
-              statuses: ['Backlog', 'In Progress', 'Review', 'Completed'],
-              activeIndex: 1,
-            ),
-            const SizedBox(height: 24),
-            const PrioritySelector(
-              label: 'PRIORITY',
-              activeIndex: 0,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: const [
-                Expanded(
-                  child: AssigneePicker(label: 'ASSIGNEE'),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: DeadlinePicker(label: 'Deadline', date: '24 Th10, 2023'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const CustomTextField(
-              label: 'DESCRIPTION',
-              hintText: 'Add a detailed description for this task...',
-              maxLines: 4,
-            ),
-            const SizedBox(height: 24),
-            const SubtaskSection(
-              label: 'SUBTASKS',
-              subtasks: [
-                {'title': 'Competitor Research', 'isDone': false},
-                {'title': 'Create Moodboard', 'isDone': true},
-              ],
-            ),
-            const SizedBox(height: 24),
-            const SkillsPicker(
-              label: 'REQUIRED SKILLS',
-              skills: ['UI Design', 'Figma'],
-            ),
-            const SizedBox(height: 40),
-          ],
+      backgroundColor: _surface,
+      appBar: AppBar(
+        backgroundColor: _surface,
+        elevation: 0,
+        title: Text(
+          _isEdit ? 'Update Task' : 'Create Task',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-      ),
-    );
-  }
-}
-
-class CreateTaskAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const CreateTaskAppBar({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1A1A)), onPressed: () { Navigator.pop(context); }),
-      title: const Text(
-        'Create New Task',
-        style: TextStyle(
-          color: Color(0xFF1A1A1A),
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
-        ),
-      ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 16.0),
-          child: Center(
-            child: InkWell(
-              onTap: () {
-                Navigator.pop(context);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6C63FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Save',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              style: FilledButton.styleFrom(backgroundColor: _primary),
+              child: Text(_saving ? 'Saving...' : 'Save'),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+      body: _loadingLookups
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  _Field(
+                    label: 'Title',
+                    child: TextFormField(
+                      controller: _titleController,
+                      maxLength: 200,
+                      decoration: const InputDecoration(hintText: 'Task title'),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Title is required.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  _Field(
+                    label: 'Description',
+                    child: TextFormField(
+                      controller: _descriptionController,
+                      maxLength: 2000,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        hintText: 'Task description',
+                      ),
+                    ),
+                  ),
+                  _Dropdown<int?>(
+                    label: 'Task type',
+                    value: _parentTaskId,
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Epic / Parent Task'),
+                      ),
+                      ..._epics
+                          .where(
+                            (epic) =>
+                                _task == null ||
+                                _taskIdOf(epic) != _taskIdOf(_task),
+                          )
+                          .map(
+                            (epic) => DropdownMenuItem<int?>(
+                              value: _taskIdOf(epic),
+                              child: Text('Sub-task of: ${_epicTitle(epic)}'),
+                            ),
+                          ),
+                    ],
+                    onChanged: (value) => setState(() => _parentTaskId = value),
+                  ),
+                  _Dropdown<int>(
+                    label: 'Status',
+                    value: _statusId,
+                    items: _statuses
+                        .map(
+                          (status) => DropdownMenuItem<int>(
+                            value: _statusIdOf(status),
+                            child: Text(_statusName(status)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _statusId = value),
+                  ),
+                  _Dropdown<int>(
+                    label: 'Priority',
+                    value: _priorityId,
+                    items: _priorities
+                        .map(
+                          (priority) => DropdownMenuItem<int>(
+                            value: _priorityIdOf(priority),
+                            child: Text(_priorityName(priority)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _priorityId = value),
+                  ),
+                  _Dropdown<int?>(
+                    label: 'Assignee',
+                    value: _assigneeId,
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Unassigned'),
+                      ),
+                      ..._members.map(
+                        (member) => DropdownMenuItem<int?>(
+                          value: _memberIdOf(member),
+                          child: Text(_memberName(member)),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) => setState(() => _assigneeId = value),
+                  ),
+                  _Field(
+                    label: 'Due date',
+                    child: InkWell(
+                      onTap: _pickDueDate,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          suffixIcon: Icon(Icons.calendar_today_rounded),
+                        ),
+                        child: Text(
+                          _dueDate == null
+                              ? 'Select due date'
+                              : _dueDate!.toIso8601String().split('T').first,
+                        ),
+                      ),
+                    ),
+                  ),
+                  _Field(
+                    label: 'Estimate hours',
+                    child: TextFormField(
+                      controller: _estimateController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: '0'),
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty) {
+                          return null;
+                        }
+                        final number = double.tryParse(text);
+                        if (number == null) {
+                          return 'Estimate hours must be a number.';
+                        }
+                        if (number < 0) {
+                          return 'Estimate hours cannot be negative.';
+                        }
+                        if (number > 999.99) {
+                          return 'Estimate hours must be less than 1000.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
-class SectionLabel extends StatelessWidget {
+class _Field extends StatelessWidget {
   final String label;
-  const SectionLabel({super.key, required this.label});
+  final Widget child;
+
+  const _Field({required this.label, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: Color(0xFF666666),
-          letterSpacing: 0.5,
-        ),
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF666666),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Theme(
+            data: Theme.of(context).copyWith(
+              inputDecorationTheme: InputDecorationTheme(
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _softBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _softBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _primary, width: 1.5),
+                ),
+              ),
+            ),
+            child: child,
+          ),
+        ],
       ),
     );
   }
 }
 
-class CustomTextField extends StatelessWidget {
+class _Dropdown<T> extends StatelessWidget {
   final String label;
-  final String hintText;
-  final bool isLarge;
-  final int maxLines;
+  final T? value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
 
-  const CustomTextField({
-    super.key,
+  const _Dropdown({
     required this.label,
-    required this.hintText,
-    this.isLarge = false,
-    this.maxLines = 1,
+    required this.value,
+    required this.items,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionLabel(label: label),
-        TextField(
-          maxLines: maxLines,
-          style: TextStyle(
-            fontSize: isLarge ? 18 : 14,
-            fontWeight: isLarge ? FontWeight.bold : FontWeight.normal,
-          ),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: const TextStyle(color: Color(0xFFB0B0B0)),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.all(16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFF3F0FF)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFF3F0FF)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class ProjectDropdown extends StatelessWidget {
-  final String label;
-  final String projectName;
-
-  const ProjectDropdown({super.key, required this.label, required this.projectName});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionLabel(label: label),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFF3F0FF)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0F7F6),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.folder_open_rounded, color: Color(0xFF4ECDC4), size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  projectName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-              ),
-              const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFFB0B0B0)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class StatusSelector extends StatelessWidget {
-  final String label;
-  final List<String> statuses;
-  final int activeIndex;
-
-  const StatusSelector({
-    super.key,
-    required this.label,
-    required this.statuses,
-    required this.activeIndex,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionLabel(label: label),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List.generate(statuses.length, (index) {
-              final bool isActive = index == activeIndex;
-              return Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFF3F0FF),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  statuses[index],
-                  style: TextStyle(
-                    color: isActive ? Colors.white : const Color(0xFF666666),
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    fontSize: 13,
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class PrioritySelector extends StatelessWidget {
-  final String label;
-  final int activeIndex;
-
-  const PrioritySelector({super.key, required this.label, required this.activeIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> options = [
-      {'label': 'High', 'color': const Color(0xFFFF6B6B), 'bg': const Color(0xFFFFEBEB)},
-      {'label': 'Medium', 'color': const Color(0xFFFFB347), 'bg': const Color(0xFFFFF4E6)},
-      {'label': 'Low', 'color': const Color(0xFFB0B0B0), 'bg': const Color(0xFFF3F0FF)},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionLabel(label: label),
-        Row(
-          children: List.generate(options.length, (index) {
-            final bool isActive = index == activeIndex;
-            return Expanded(
-              child: Container(
-                margin: EdgeInsets.only(right: index == options.length - 1 ? 0 : 8),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: options[index]['bg'],
-                  borderRadius: BorderRadius.circular(10),
-                  border: isActive ? Border.all(color: options[index]['color'], width: 1.5) : null,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: options[index]['color'],
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      options[index]['label'],
-                      style: TextStyle(
-                        color: options[index]['color'],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-        ),
-      ],
-    );
-  }
-}
-
-class AssigneePicker extends StatelessWidget {
-  final String label;
-  const AssigneePicker({super.key, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionLabel(label: label),
-        Row(
-          children: [
-            const CircleAvatar(
-              radius: 16,
-              backgroundImage: NetworkImage('https://i.pravatar.cc/100?img=32'),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFE0E0E0), style: BorderStyle.solid),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.add, size: 16, color: Color(0xFFB0B0B0)),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class DeadlinePicker extends StatelessWidget {
-  final String label;
-  final String date;
-
-  const DeadlinePicker({super.key, required this.label, required this.date});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionLabel(label: label),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFF3F0FF)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF6C63FF)),
-              const SizedBox(width: 8),
-              Text(
-                date,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class SubtaskSection extends StatelessWidget {
-  final String label;
-  final List<Map<String, dynamic>> subtasks;
-
-  const SubtaskSection({super.key, required this.label, required this.subtasks});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionLabel(label: label),
-        ...subtasks.map((task) => Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFF3F0FF)),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                task['isDone'] ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                color: task['isDone'] ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0),
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  task['title'],
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: task['isDone'] ? const Color(0xFFB0B0B0) : const Color(0xFF1A1A1A),
-                    decoration: task['isDone'] ? TextDecoration.lineThrough : null,
-                  ),
-                ),
-              ),
-              const Icon(Icons.close, size: 16, color: Color(0xFFB0B0B0)),
-            ],
-          ),
-        )),
-        TextButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('Add SUBTASKS'),
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF6C63FF),
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class SkillsPicker extends StatelessWidget {
-  final String label;
-  final List<String> skills;
-
-  const SkillsPicker({super.key, required this.label, required this.skills});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionLabel(label: label),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ...skills.map((skill) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F0FF),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    skill,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF666666)),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.close, size: 12, color: Color(0xFFB0B0B0)),
-                ],
-              ),
-            )),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFE0E0E0)),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.add, size: 16, color: Color(0xFFB0B0B0)),
-            ),
-          ],
-        ),
-      ],
+    return _Field(
+      label: label,
+      child: DropdownButtonFormField<T>(
+        initialValue: value,
+        isExpanded: true,
+        decoration: const InputDecoration(),
+        items: items,
+        onChanged: onChanged,
+        validator: (value) {
+          if (label == 'Status' && value == null) {
+            return 'Status is required.';
+          }
+          if (label == 'Priority' && value == null) {
+            return 'Priority is required.';
+          }
+          return null;
+        },
+      ),
     );
   }
 }
