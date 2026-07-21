@@ -47,8 +47,7 @@ class ChatService {
   Function()? onConnected;
   Function()? onDisconnected;
 
-  bool get isConnected =>
-      _connection?.state == HubConnectionState.Connected;
+  bool get isConnected => _connection?.state == HubConnectionState.Connected;
 
   Future<void> connect() async {
     if (isConnected) return;
@@ -91,7 +90,9 @@ class ChatService {
 
     // Đăng ký nhận lỗi từ server
     _connection!.on('Error', (args) {
-      final msg = args?.isNotEmpty == true ? args![0]?.toString() : 'Unknown error';
+      final msg = args?.isNotEmpty == true
+          ? args![0]?.toString()
+          : 'Unknown error';
       onError?.call(msg ?? 'Unknown error');
     });
 
@@ -111,10 +112,17 @@ class ChatService {
     }
   }
 
-  Future<void> joinRoom(int projectId, {int senderId = 0, String displayName = ''}) async {
+  Future<void> joinRoom(
+    int projectId, {
+    int senderId = 0,
+    String displayName = '',
+  }) async {
     if (!isConnected) return;
     try {
-      await _connection!.invoke('JoinProjectRoom', args: [projectId, senderId, displayName]);
+      await _connection!.invoke(
+        'JoinProjectRoom',
+        args: [projectId, senderId, displayName],
+      );
     } catch (e) {
       onError?.call('JoinRoom error: $e');
     }
@@ -127,22 +135,37 @@ class ChatService {
     } catch (_) {}
   }
 
-  Future<void> sendMessage(int projectId, String content, {int senderId = 0, String displayName = ''}) async {
+  Future<void> sendMessage(
+    int projectId,
+    String content, {
+    int senderId = 0,
+    String displayName = '',
+  }) async {
     if (!isConnected) {
       onError?.call('Not connected to chat server');
       return;
     }
     try {
-      await _connection!.invoke('SendMessage', args: [projectId, content, senderId, displayName]);
+      await _connection!.invoke(
+        'SendMessage',
+        args: [projectId, content, senderId, displayName],
+      );
     } catch (e) {
       onError?.call('Send failed: $e');
     }
   }
 
-  Future<void> sendTyping(int projectId, {int senderId = 0, String displayName = ''}) async {
+  Future<void> sendTyping(
+    int projectId, {
+    int senderId = 0,
+    String displayName = '',
+  }) async {
     if (!isConnected) return;
     try {
-      await _connection!.invoke('Typing', args: [projectId, senderId, displayName]);
+      await _connection!.invoke(
+        'Typing',
+        args: [projectId, senderId, displayName],
+      );
     } catch (_) {}
   }
 

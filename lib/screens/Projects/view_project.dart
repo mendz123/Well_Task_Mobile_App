@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../core/services/project_service.dart';
 
 class ProjectListScreen extends StatefulWidget {
