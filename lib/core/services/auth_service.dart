@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -153,8 +154,9 @@ class AuthService {
   static Future<Map<String, dynamic>> googleLogin() async {
     try {
       final googleSignIn = GoogleSignIn(
-        clientId: ApiConstants.googleClientId,
-        scopes: ['email', 'profile'],
+        clientId: kIsWeb ? ApiConstants.googleClientId : null,
+        serverClientId: kIsWeb ? null : ApiConstants.googleClientId,
+        scopes: const ['email', 'profile'],
       );
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
@@ -163,17 +165,20 @@ class AuthService {
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
-      final String? idToken = googleAuth.idToken;
+      final String? tokenToSend =
+          (googleAuth.idToken != null && googleAuth.idToken!.isNotEmpty)
+              ? googleAuth.idToken
+              : googleAuth.accessToken;
 
-      if (idToken == null || idToken.isEmpty) {
-        return {'success': false, 'message': 'Failed to obtain Google ID token'};
+      if (tokenToSend == null || tokenToSend.isEmpty) {
+        return {'success': false, 'message': 'Failed to obtain Google token'};
       }
 
       final response = await http.post(
         Uri.parse(ApiConstants.googleLogin),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'idToken': idToken,
+          'idToken': tokenToSend,
         }),
       );
 
