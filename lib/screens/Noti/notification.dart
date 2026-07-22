@@ -1,168 +1,170 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import '../../core/services/notification_service.dart';
 
-class NotificationScreen extends StatelessWidget {
+class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
 
   @override
+  State<NotificationScreen> createState() => _NotificationScreenState();
+}
+
+class _NotificationScreenState extends State<NotificationScreen> {
+  final _svc = NotificationService();
+
+  @override
+  void initState() {
+    super.initState();
+    _svc.addListener(_rebuild);
+    _svc.fetchNotifications();
+  }
+
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _svc.removeListener(_rebuild);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final notifications = _svc.all;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFCF8FF),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const NotificationHeader(),
-            const NotificationFilterTabs(),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                children: const [
-                  NotificationCard(
-                    title: 'Due soon: "Project Report...',
-                    content: 'This task is due at 23:59 today. Would you like to update...',
-                    time: '10 minutes ago',
-                    icon: Icons.timer_outlined,
-                    iconBgColor: Color(0xFFFFEBEB),
-                    iconColor: Color(0xFFFF6B6B),
-                    isUnread: true,
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Notifications', style: Theme.of(context).textTheme.headlineLarge),
+                      if (_svc.unreadCount > 0)
+                        Text(
+                          '${_svc.unreadCount} unread',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
+                        ),
+                    ],
                   ),
-                  SizedBox(height: 16),
-                  NotificationCard(
-                    title: 'Minh Anh mentioned you',
-                    content: '" @you Please check the chart on page 3, the data seems...',
-                    time: '2 hours ago',
-                    avatarUrl: 'https://i.pravatar.cc/100?img=12',
-                    isUnread: true,
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.refresh_rounded, color: Color(0xFF6C63FF)),
+                        onPressed: () => _svc.fetchNotifications(),
+                      ),
+                      if (_svc.unreadCount > 0)
+                        TextButton(
+                          onPressed: () => _svc.markAllRead(),
+                          child: const Text(
+                            'Mark all\nas read',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              color: Color(0xFF6C63FF),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                  SizedBox(height: 16),
-                  NotificationCard(
-                    title: 'New task assigned',
-                    content: 'You were assigned "Find reference materials for chapter 1" in...',
-                    time: 'Yesterday, 14:30',
-                    icon: Icons.assignment_outlined,
-                    iconBgColor: Color(0xFFE8E4FF),
-                    iconColor: Color(0xFF6C63FF),
-                  ),
-                  SizedBox(height: 16),
-                  NotificationCard(
-                    title: 'Congratulations! You completed...',
-                    content: 'A productive week! Keep up the good work!',
-                    time: 'Monday, 09:00',
-                    icon: Icons.celebration_outlined,
-                    iconBgColor: Color(0xFFF3F0FF),
-                    iconColor: Color(0xFFB0B0B0),
-                  ),
-                  SizedBox(height: 100), // Space for Bottom Nav
                 ],
               ),
+            ),
+
+            // List
+            Expanded(
+              child: _svc.isLoading && notifications.isEmpty
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+                  : notifications.isEmpty
+                      ? RefreshIndicator(
+                          onRefresh: () => _svc.fetchNotifications(),
+                          color: const Color(0xFF6C63FF),
+                          child: ListView(
+                            children: [
+                              const SizedBox(height: 100),
+                              Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.notifications_none_rounded, size: 64, color: Colors.grey.shade300),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      'No notifications yet.',
+                                      style: TextStyle(color: Color(0xFF999999), fontSize: 15),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Task assignments and project invites will appear here.',
+                                      style: TextStyle(color: Color(0xFFBBBBBB), fontSize: 12),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: () => _svc.fetchNotifications(),
+                          color: const Color(0xFF6C63FF),
+                          child: ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                            itemCount: notifications.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final n = notifications[index];
+                              return GestureDetector(
+                                onTap: () => _svc.markRead(n.id),
+                                child: _NotificationCard(
+                                  title: n.title,
+                                  content: n.body,
+                                  time: _formatTime(n.time),
+                                  isUnread: !n.isRead,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
             ),
           ],
         ),
       ),
-      
     );
+  }
+
+  String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes} minutes ago';
+    if (diff.inDays < 1) return '${diff.inHours} hours ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 }
 
-class NotificationHeader extends StatelessWidget {
-  const NotificationHeader({super.key});
+// ─── Card ─────────────────────────────────────────────────────────────────────
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Notifications',
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
-          TextButton(
-            onPressed: () {},
-            child: const Text(
-              'Mark all\nas read',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: Color(0xFF6C63FF),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class NotificationFilterTabs extends StatelessWidget {
-  const NotificationFilterTabs({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: const [
-          FilterChipItem(label: 'All', isActive: true),
-          SizedBox(width: 12),
-          FilterChipItem(label: 'Unread'),
-          SizedBox(width: 12),
-          FilterChipItem(label: 'Reminders'),
-        ],
-      ),
-    );
-  }
-}
-
-class FilterChipItem extends StatelessWidget {
-  final String label;
-  final bool isActive;
-
-  const FilterChipItem({super.key, required this.label, this.isActive = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      decoration: BoxDecoration(
-        color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFF3F0FF),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isActive ? Colors.white : const Color(0xFF666666),
-          fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-          fontSize: 14,
-        ),
-      ),
-    );
-  }
-}
-
-class NotificationCard extends StatelessWidget {
+class _NotificationCard extends StatelessWidget {
   final String title;
   final String content;
   final String time;
-  final IconData? icon;
-  final Color? iconBgColor;
-  final Color? iconColor;
-  final String? avatarUrl;
   final bool isUnread;
 
-  const NotificationCard({
-    super.key,
+  const _NotificationCard({
     required this.title,
     required this.content,
     required this.time,
-    this.icon,
-    this.iconBgColor,
-    this.iconColor,
-    this.avatarUrl,
     this.isUnread = false,
   });
 
@@ -171,11 +173,11 @@ class NotificationCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        color: isUnread ? const Color(0xFFF3F0FF) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -184,38 +186,16 @@ class NotificationCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Leading Icon or Avatar
-          if (avatarUrl != null)
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundImage: NetworkImage(avatarUrl!),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF6C63FF),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 10),
-                  ),
-                ),
-              ],
-            )
-          else
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: iconBgColor ?? const Color(0xFFF3F0FF),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon ?? Icons.notifications_none, color: iconColor ?? const Color(0xFF6C63FF), size: 24),
+          // Icon
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFF6C63FF).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
             ),
+            child: const Icon(Icons.notifications_active_outlined, color: Color(0xFF6C63FF), size: 24),
+          ),
           const SizedBox(width: 16),
           // Content
           Expanded(
@@ -223,12 +203,15 @@ class NotificationCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
                       child: Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: TextStyle(
+                          fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 14,
+                          color: const Color(0xFF1A1A1A),
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -247,84 +230,17 @@ class NotificationCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   content,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: const TextStyle(color: Color(0xFF666666), fontSize: 13),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  time,
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
+                const SizedBox(height: 6),
+                Text(time, style: const TextStyle(fontSize: 11, color: Color(0xFFB0B0B0))),
               ],
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class CustomBottomNavBar extends StatelessWidget {
-  const CustomBottomNavBar({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.only(bottom: 24, top: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 20),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
-          NavItem(icon: Icons.home_outlined, label: 'Home'),
-          NavItem(icon: Icons.folder_outlined, label: 'PROJECT'),
-          NavItem(icon: Icons.notifications_rounded, label: 'Notifications', isActive: true),
-          NavItem(icon: Icons.chat_bubble_outline_rounded, label: 'Chat'),
-          NavItem(icon: Icons.person_outline_rounded, label: 'Profile'),
-        ],
-      ),
-    );
-  }
-}
-
-class NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-
-  const NavItem({super.key, required this.icon, required this.label, this.isActive = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: isActive
-              ? BoxDecoration(
-            color: const Color(0xFFF3F0FF),
-            borderRadius: BorderRadius.circular(16),
-          )
-              : null,
-          child: Icon(icon, color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0)),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0),
-          ),
-        ),
-      ],
     );
   }
 }

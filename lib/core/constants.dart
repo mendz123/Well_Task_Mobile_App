@@ -1,19 +1,30 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
 class ApiConstants {
   // Automatically select the correct base URL based on platform:
   // - Web / Desktop / iOS Simulator: http://localhost:5018/api
   // - Android Emulator: http://10.0.2.2:5018/api
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5018/api';
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:5018/api';
-    } else {
-      return 'http://localhost:5018/api';
-    }
-  }
+  // static String get baseUrl {
+  //   if (kIsWeb) {
+  //     return 'http://localhost:5018/api';
+  //   } else if (defaultTargetPlatform == TargetPlatform.android) {
+  //     return 'http://192.168.1.42/api';
+  //   } else {
+  //     return 'http://localhost:5018/api';
+  //   }
+  // }
+
+  // // static  String baseUrl = 'http://192.168.1.42:5018';
+  // static String baseHost = '$baseUrl/api';
+  // static  String hubUrl = '$baseUrl/chatHub';
+
+
+  static const String baseHost = 'http://192.168.1.42:5018';
+  static const String baseUrl = '$baseHost/api';
+  static const String hubUrl = '$baseHost/chatHub';
+
+  // Chat Endpoints
+  static String chatHistory(int projectId) => '$baseUrl/chat/$projectId/history';
 
   // Google Client ID
   static String get googleClientId =>
@@ -38,4 +49,27 @@ class ApiConstants {
   static String get userProfile => '$baseUrl/users/me';
   static String get changePassword => '$baseUrl/users/me/change-password';
   static String get uploadAvatar => '$baseUrl/users/me/avatar';
+
+  // TaskManage Endpoints
+  static String get tasks => '$baseUrl/tasks';
+  static String tasksByProject(int projectId) =>
+      '$baseUrl/tasks/project/$projectId';
+  static String taskDetail(int id) => '$baseUrl/tasks/$id';
+  static String taskLookups(int projectId) =>
+      '$baseUrl/tasks/lookups/$projectId';
+  static String assignTask(int id) => '$baseUrl/tasks/$id/assign';
+  static String taskAssignee(int id) => '$baseUrl/tasks/$id/assignee';
+  static String selfAssignTask(int id) => '$baseUrl/tasks/$id/self-assign';
+
+  static String get taskStatuses => '$baseUrl/task-statuses';
+  static String taskStatus(int id) => '$baseUrl/task-statuses/$id';
+
+  // Comments Endpoints (OData - under baseHost, not baseUrl)
+  static String get comments => '$baseHost/odata/Comments';
+  static String commentsByTask(int taskId) => '$baseHost/odata/Comments?\$filter=TaskId eq $taskId&\$expand=User(\$expand=UserProfile)&\$orderby=CreatedAt asc';
+  static String commentDetail(int commentId) => '$baseHost/odata/Comments($commentId)';
+
+  // Notifications Endpoints (OData - under baseHost, not baseUrl)
+  static String odataNotifications(int userId) => '$baseHost/odata/Notifications?\$filter=UserId eq $userId&\$orderby=CreatedAt desc';
+  static String odataNotificationPatch(int id) => '$baseHost/odata/Notifications($id)';
 }

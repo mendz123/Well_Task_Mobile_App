@@ -1,581 +1,632 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/comment_service.dart';
+import '../../core/services/notification_service.dart';
+import '../../core/services/project_service.dart';
+import '../../core/services/task_service.dart';
 
-class TaskDetailScreen extends StatelessWidget {
+const Color _primary = Color(0xFF6C63FF);
+const Color _surface = Color(0xFFFCF8FF);
+const Color _softBorder = Color(0xFFF3F0FF);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+int? _asInt(dynamic value) {
+  if (value == null || value.toString().isEmpty) return null;
+  if (value is int) return value;
+  return int.tryParse(value.toString());
+}
+
+String _text(dynamic value, [String fallback = '']) {
+  final text = value?.toString() ?? '';
+  return text.trim().isEmpty ? fallback : text;
+}
+
+String _dateOnly(dynamic value) {
+  if (value == null) return 'No due date';
+  return value.toString().split('T').first;
+}
+
+/// Avatar chữ cái đầu, không dùng ảnh mạng
+Widget _InitialsAvatar(String name, {double radius = 20}) {
+  final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: _primary.withValues(alpha: 0.15),
+    child: Text(
+      initial,
+      style: TextStyle(
+        fontSize: radius * 0.85,
+        fontWeight: FontWeight.bold,
+        color: _primary,
+      ),
+    ),
+  );
+}
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
+
+class TaskDetailScreen extends StatefulWidget {
   const TaskDetailScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFCF8FF),
-      appBar: const TaskDetailAppBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+  State<TaskDetailScreen> createState() => _TaskDetailScreenState();
+}
+
+class _TaskDetailScreenState extends State<TaskDetailScreen> {
+  bool _initialized = false;
+  Map<String, dynamic>? _task;
+  int? _projectId;
+  String _projectName = 'TaskManage';
+  List<dynamic> _statuses = [];
+  List<dynamic> _priorities = [];
+  List<dynamic> _members = [];
+  List<dynamic> _epics = [];
+  String _myRole = 'Member'; // 'TeamLeader' | 'Member'
+  int _myUserId = 0;
+  String _myName = 'Me';
+
+  // Comments
+  List<Map<String, dynamic>> _comments = [];
+  bool _loadingComments = false;
+  bool _postingComment = false;
+  final TextEditingController _commentCtrl = TextEditingController();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      final rawTask = args['task'];
+      if (rawTask is Map<String, dynamic>) _task = rawTask;
+      _projectId = _asInt(args['projectId']);
+      _projectName = _text(args['projectName'], 'TaskManage');
+      _statuses = args['statuses'] as List<dynamic>? ?? [];
+      _priorities = args['priorities'] as List<dynamic>? ?? [];
+      _members = args['members'] as List<dynamic>? ?? [];
+      _epics = args['epics'] as List<dynamic>? ?? [];
+      _myRole = _text(args['userRole'], 'Member');
+    }
+
+    _initUser();
+  }
+
+  Future<void> _initUser() async {
+    _myUserId = await AuthService.getUserId();
+    _myName = await AuthService.getUserName();
+
+    final pid = _projectId ?? _asInt(_task?['projectId'] ?? _task?['ProjectId']);
+    if (pid != null && pid > 0) {
+      try {
+        final projects = await ProjectService.getAllProjects();
+        for (final p in projects) {
+          final id = _asInt(p['projectId'] ?? p['ProjectId'] ?? p['id']);
+          if (id == pid) {
+            final r = _text(p['userRole'] ?? p['UserRole']);
+            if (r.isNotEmpty && mounted) {
+              setState(() => _myRole = r);
+            }
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    _loadComments();
+  }
+
+  Future<void> _loadComments() async {
+    final taskId = _taskId();
+    if (taskId <= 0) return;
+    setState(() => _loadingComments = true);
+    final list = await CommentService.getByTask(taskId);
+    if (mounted) setState(() { _comments = list; _loadingComments = false; });
+  }
+
+  Future<void> _postComment() async {
+    final content = _commentCtrl.text.trim();
+    if (content.isEmpty) return;
+    setState(() => _postingComment = true);
+
+    final result = await CommentService.createComment(
+      taskId: _taskId(),
+      content: content,
+    );
+
+    if (!mounted) return;
+    setState(() => _postingComment = false);
+
+    if (result['success'] == true) {
+      _commentCtrl.clear();
+      // Push notification to all members
+      NotificationService().addNotification(
+        title: '💬 New comment on "${_title()}"',
+        body: '$_myName: $content',
+      );
+      _loadComments();
+    } else {
+      _snack(result['message'] ?? 'Could not post comment');
+    }
+  }
+
+  Future<void> _deleteComment(int commentId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete comment'),
+        content: const Text('Delete this comment?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final result = await CommentService.deleteComment(commentId);
+    if (mounted) {
+      if (result['success'] == true) {
+        _loadComments();
+      } else {
+        _snack(result['message'] ?? 'Could not delete comment');
+      }
+    }
+  }
+
+  String _getCommentAuthorName(Map<String, dynamic> comment) {
+    final user = comment['user'] ?? comment['User'];
+    final profile = user is Map ? (user['userProfile'] ?? user['UserProfile']) : null;
+
+    String name = '';
+    if (profile is Map) {
+      name = _text(profile['fullName'] ?? profile['FullName']);
+    }
+    if (name.isEmpty && user is Map) {
+      name = _text(user['email'] ?? user['Email']);
+    }
+    if (name.isEmpty) {
+      name = _text(comment['userFullName'] ?? comment['UserFullName']);
+    }
+
+    final authorId = _asInt(comment['userId'] ?? comment['UserId'] ?? (user is Map ? user['userId'] : null));
+
+    if (name.isEmpty && authorId != null && authorId > 0) {
+      for (final m in _members) {
+        final uid = _asInt(m['userId'] ?? m['UserId'] ?? m['user']?['userId']);
+        if (uid == authorId) {
+          name = _text(m['fullName'] ?? m['FullName'] ?? m['email'] ?? m['Email']);
+          break;
+        }
+      }
+    }
+
+    if (name.isEmpty && authorId != null) {
+      return 'User#$authorId';
+    }
+    return name.isNotEmpty ? name : 'User';
+  }
+
+  int _taskId() => _asInt(_task?['taskId'] ?? _task?['TaskId']) ?? 0;
+  int? _statusId() => _asInt(_task?['taskStatusId'] ?? _task?['TaskStatusId']);
+  int? _assigneeId() => _asInt(_task?['assigneeId'] ?? _task?['AssigneeId']);
+  bool get _isLeader {
+    final role = _myRole.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+    return role == 'teamleader' || role == 'leader';
+  }
+
+  String _title() => _text(_task?['title'] ?? _task?['Title'], 'Untitled task');
+  String _description() => _text(_task?['description'] ?? _task?['Description'], 'No description.');
+  String _statusName() => _text(_task?['statusName'] ?? _task?['StatusName'], 'Unknown');
+  String _priorityName() => _text(_task?['priorityName'] ?? _task?['PriorityName'], 'No priority');
+  String _assigneeName() {
+    return _text(
+      _task?['assigneeFullName'] ?? _task?['AssigneeFullName'] ?? _task?['assigneeEmail'] ?? _task?['AssigneeEmail'],
+      'Unassigned',
+    );
+  }
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _edit() async {
+    final result = await Navigator.pushNamed(
+      context,
+      '/tasks/new',
+      arguments: {
+        'mode': 'edit',
+        'task': _task,
+        'projectId': _projectId,
+        'projectName': _projectName,
+        'statuses': _statuses,
+        'priorities': _priorities,
+        'members': _members,
+        'epics': _epics,
+      },
+    );
+    if (!mounted) return;
+    if (result == true) Navigator.pop(context, true);
+  }
+
+  Future<void> _delete() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete task'),
+        content: Text('Delete "${_title()}"? This will soft-delete the task.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final result = await TaskService.deleteTask(_taskId());
+    if (!mounted) return;
+    if (result['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      _snack(result['message'] ?? 'Could not delete this task');
+    }
+  }
+
+  Future<void> _move(int statusId) async {
+    final result = await TaskService.moveTask(_taskId(), statusId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      _snack(result['message'] ?? 'Could not move this task');
+    }
+  }
+
+  Future<void> _selfAssign() async {
+    final result = await TaskService.selfAssignTask(_taskId());
+    if (!mounted) return;
+    if (result['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      _snack(result['message'] ?? 'Could not self-assign this task');
+    }
+  }
+
+  Future<void> _unassign() async {
+    final result = await TaskService.unassignTask(_taskId());
+    if (!mounted) return;
+    if (result['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      _snack(result['message'] ?? 'Could not remove assignee');
+    }
+  }
+
+  void _showMoveSheet() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const TaskHeader(
-              breadcrumb: 'PROJECT / Design App',
-              group: 'Team',
-              title: 'Design UI for Task Detail & Dashboard',
+            const ListTile(
+              title: Text('Move task to status', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
-            const SizedBox(height: 24),
-            const StatusSection(),
-            const SizedBox(height: 24),
-            const InfoCard(
-              title: 'DESCRIPTION',
-              content:
-              'Complete UI design for 2 main screens. Follow new Design System (Airy Minimalism). Need clear component library and responsive states.',
-            ),
-            const SizedBox(height: 20),
-            const SubtaskSection(
-              total: 3,
-              completed: 1,
-              subtasks: [
-                SubtaskItem(title: 'Reference Research (Notion, Linear)', isDone: true),
-                SubtaskItem(title: 'Draft Wireframe for Detail Screen', isDone: false),
-                SubtaskItem(title: 'Apply UI Kit to Wireframe', isDone: false),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const AssigneeSection(
-              assignees: [
-                {'name': 'Linh N.', 'avatar': 'https://i.pravatar.cc/100?img=32'},
-                {'name': 'Minh T.', 'avatar': 'https://i.pravatar.cc/100?img=12'},
-              ],
-            ),
-            const SizedBox(height: 20),
-            const SkillsSection(
-              skills: ['UI Design', 'Figma', 'Design System'],
-            ),
-            const SizedBox(height: 32),
-            const CommentSection(),
-            const SizedBox(height: 100), // Space for bottom nav
+            ..._statuses.map((status) {
+              final id = _asInt(status['taskStatusId'] ?? status['TaskStatusId']) ?? 0;
+              final name = _text(status['statusName'] ?? status['StatusName'], 'Status');
+              return ListTile(
+                leading: Icon(
+                  id == _statusId() ? Icons.check_circle : Icons.radio_button_unchecked,
+                  color: _primary,
+                ),
+                title: Text(name),
+                onTap: () { Navigator.pop(context); _move(id); },
+              );
+            }),
           ],
         ),
       ),
-      
-    );
-  }
-}
-
-class TaskDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const TaskDetailAppBar({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(icon: const Icon(Icons.arrow_back, color: Color(0xFF1A1A1A)), onPressed: () { Navigator.pop(context); }),
-      title: const Text(
-        'WellTask',
-        style: TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold, fontSize: 20),
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.more_vert, color: Color(0xFF666666)),
-          onPressed: () {},
-        ),
-      ],
     );
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-}
-
-class TaskHeader extends StatelessWidget {
-  final String breadcrumb;
-  final String group;
-  final String title;
-
-  const TaskHeader({
-    super.key,
-    required this.breadcrumb,
-    required this.group,
-    required this.title,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(breadcrumb, style: const TextStyle(fontSize: 12, color: Color(0xFFB0B0B0))),
-        Text(group, style: const TextStyle(fontSize: 12, color: Color(0xFF666666), fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Text(title, style: Theme.of(context).textTheme.headlineMedium),
-      ],
-    );
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
   }
-}
-
-class StatusSection extends StatelessWidget {
-  const StatusSection({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8E4FF),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              const Expanded(child: StatusChip(label: 'In Progress', isActive: true)),
-              const Expanded(child: StatusChip(label: 'Not Started')),
-              const Expanded(child: StatusChip(label: 'Completed')),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEBEB),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: const [
-                  Icon(Icons.flag_rounded, color: Color(0xFFFF6B6B), size: 16),
-                  SizedBox(width: 4),
-                  Text('High', style: TextStyle(color: Color(0xFFFF6B6B), fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F0FF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: const [
-                  Icon(Icons.calendar_today_rounded, color: Color(0xFF6C63FF), size: 16),
-                  SizedBox(width: 4),
-                  Text('Today, 11:59 PM', style: TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
+    final task = _task;
+    if (task == null) {
+      return const Scaffold(body: Center(child: Text('Task not found.')));
+    }
 
-class StatusChip extends StatelessWidget {
-  final String label;
-  final bool isActive;
+    final isSubTask = _asInt(task['parentTaskId'] ?? task['ParentTaskId']) != null;
 
-  const StatusChip({super.key, required this.label, this.isActive = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: isActive
-          ? BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)],
-      )
-          : null,
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          color: isActive ? const Color(0xFF6C63FF) : const Color(0xFF666666),
-        ),
-      ),
-    );
-  }
-}
-
-class InfoCard extends StatelessWidget {
-  final String title;
-  final String content;
-
-  const InfoCard({super.key, required this.title, required this.content});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF3F0FF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          Text(content, style: Theme.of(context).textTheme.bodyLarge),
-        ],
-      ),
-    );
-  }
-}
-
-class SubtaskSection extends StatelessWidget {
-  final int total;
-  final int completed;
-  final List<SubtaskItem> subtasks;
-
-  const SubtaskSection({
-    super.key,
-    required this.total,
-    required this.completed,
-    required this.subtasks,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF3F0FF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('SUBTASKS', style: Theme.of(context).textTheme.titleLarge),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F0FF),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text('$completed/$total Completed', style: const TextStyle(fontSize: 10, color: Color(0xFF6C63FF), fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...subtasks,
-          const SizedBox(height: 12),
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Add SUBTASKS'),
-            style: TextButton.styleFrom(foregroundColor: Color(0xFF6C63FF)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SubtaskItem extends StatelessWidget {
-  final String title;
-  final bool isDone;
-
-  const SubtaskItem({super.key, required this.title, required this.isDone});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(
-            isDone ? Icons.check_circle : Icons.radio_button_unchecked,
-            color: isDone ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0),
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isDone ? const Color(0xFFB0B0B0) : const Color(0xFF1A1A1A),
-                decoration: isDone ? TextDecoration.lineThrough : null,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class AssigneeSection extends StatelessWidget {
-  final List<Map<String, String>> assignees;
-
-  const AssigneeSection({super.key, required this.assignees});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF3F0FF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('ASSIGNEE', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              ...assignees.map((a) => Chip(
-                avatar: CircleAvatar(backgroundImage: NetworkImage(a['avatar']!)),
-                label: Text(a['name']!, style: const TextStyle(fontSize: 12)),
-                deleteIcon: const Icon(Icons.close, size: 14),
-                onDeleted: () {},
-                backgroundColor: const Color(0xFFF3F0FF),
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              )),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFF6C63FF), style: BorderStyle.solid),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.person_add_outlined, size: 16, color: Color(0xFF6C63FF)),
-              ),
+    return Scaffold(
+      backgroundColor: _surface,
+      appBar: AppBar(
+        backgroundColor: _surface,
+        elevation: 0,
+        title: const Text('Task Detail', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(icon: const Icon(Icons.edit), onPressed: _edit),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'move') _showMoveSheet();
+              if (value == 'delete') _delete();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'move', child: Text('Move status')),
+              PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
           ),
         ],
       ),
-    );
-  }
-}
-
-class SkillsSection extends StatelessWidget {
-  final List<String> skills;
-
-  const SkillsSection({super.key, required this.skills});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF3F0FF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListView(
+        padding: const EdgeInsets.all(20),
         children: [
-          Text('REQUIRED SKILLS', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
+          // Project label
+          Text(
+            _projectName.toUpperCase(),
+            style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          // Badges
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              ...skills.map((s) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F0FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(s, style: const TextStyle(fontSize: 12, color: Color(0xFF666666))),
-              )),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFFB0B0B0), style: BorderStyle.none),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.white,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.add, size: 14, color: Color(0xFFB0B0B0)),
-                    SizedBox(width: 4),
-                    Text('Add', style: TextStyle(fontSize: 12, color: Color(0xFFB0B0B0))),
-                  ],
-                ),
-              ),
+              _Badge(label: isSubTask ? 'SUB-TASK' : 'EPIC', color: isSubTask ? const Color(0xFF4ECDC4) : _primary),
+              _Badge(label: _statusName(), color: _primary),
+              _Badge(label: _priorityName(), color: Colors.orange),
             ],
           ),
+          const SizedBox(height: 18),
+          // Title
+          Text(_title(), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          // Description
+          _InfoCard(
+            title: 'Description',
+            child: Text(_description(), style: const TextStyle(fontSize: 15, height: 1.5)),
+          ),
+          // Schedule
+          _InfoCard(
+            title: 'Schedule',
+            child: Row(
+              children: [
+                const Icon(Icons.calendar_today_rounded, color: _primary, size: 18),
+                const SizedBox(width: 8),
+                Text(_dateOnly(task['dueDate'] ?? task['DueDate']), style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          // Assignee
+          _InfoCard(
+            title: 'Assignee',
+            child: Row(
+              children: [
+                _InitialsAvatar(_assigneeName()),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(_assigneeName(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                if (_assigneeId() == null)
+                  TextButton.icon(onPressed: _selfAssign, icon: const Icon(Icons.person_add_alt), label: const Text('Claim'))
+                else
+                  TextButton.icon(onPressed: _unassign, icon: const Icon(Icons.person_remove_alt_1), label: const Text('Remove')),
+              ],
+            ),
+          ),
+          // ── Comments section ───────────────────────────────────────────────
+          _InfoCard(
+            title: 'Comments (${_comments.length})',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_loadingComments)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ))
+                else if (_comments.isEmpty)
+                  const Text('No comments yet.', style: TextStyle(color: Colors.grey))
+                else
+                  ..._comments.map((comment) {
+                    final content = _text(comment['content'] ?? comment['Content']);
+                    final authorId = _asInt(comment['userId'] ?? comment['UserId'] ?? comment['user']?['userId'] ?? comment['User']?['userId']);
+                    final authorName = _getCommentAuthorName(comment);
+                    final commentId = _asInt(comment['commentId'] ?? comment['CommentId']) ?? 0;
+                    final createdAt = comment['createdAt'] ?? comment['CreatedAt'];
+                    final isMyComment = authorId != null && authorId == _myUserId;
+                    final canDelete = isMyComment || _isLeader;
+                    final timeStr = createdAt != null
+                        ? _formatTime(DateTime.tryParse(createdAt.toString()))
+                        : '';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _InitialsAvatar(authorName, radius: 16),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      authorName,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(timeStr, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                    if (canDelete) ...[
+                                      const Spacer(),
+                                      GestureDetector(
+                                        onTap: () => _deleteComment(commentId),
+                                        child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isMyComment ? _primary.withValues(alpha: 0.08) : const Color(0xFFF5F5F5),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(content, style: const TextStyle(fontSize: 14, height: 1.4)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+
+                // Input area: chỉ leader được comment
+                const SizedBox(height: 8),
+                if (_isLeader)
+                  Row(
+                    children: [
+                      _InitialsAvatar(_myName, radius: 16),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _commentCtrl,
+                          maxLines: null,
+                          enabled: !_postingComment,
+                          decoration: InputDecoration(
+                            hintText: 'Write a comment...',
+                            hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+                            filled: true,
+                            fillColor: const Color(0xFFF5F5F5),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _postingComment
+                          ? const SizedBox(width: 36, height: 36, child: CircularProgressIndicator(strokeWidth: 2))
+                          : GestureDetector(
+                              onTap: _postComment,
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: const BoxDecoration(color: _primary, shape: BoxShape.circle),
+                                child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                              ),
+                            ),
+                    ],
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.lock_outline, size: 16, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Only Team Leaders can comment on tasks.',
+                            style: TextStyle(fontSize: 12, color: Colors.orange),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
-}
 
-class CommentSection extends StatelessWidget {
-  const CommentSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Comments', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 16),
-        const CommentItem(
-          name: 'Minh',
-          time: '2 hours ago',
-          avatar: 'https://i.pravatar.cc/100?img=12',
-          message: 'I have uploaded the 2 latest screens!',
-        ),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
-          ),
-          child: Row(
-            children: [
-              const CircleAvatar(radius: 16, backgroundImage: NetworkImage('https://i.pravatar.cc/100?img=33')),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Add Comments...',
-                    border: InputBorder.none,
-                    hintStyle: TextStyle(fontSize: 14, color: Color(0xFFB0B0B0)),
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.send_rounded, color: Color(0xFF6C63FF)),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final now = DateTime.now();
+    final diff = now.difference(local);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    return '${local.day}/${local.month}/${local.year}';
   }
 }
 
-class CommentItem extends StatelessWidget {
-  final String name;
-  final String time;
-  final String avatar;
-  final String message;
+// ─── Widgets ─────────────────────────────────────────────────────────────────
 
-  const CommentItem({
-    super.key,
-    required this.name,
-    required this.time,
-    required this.avatar,
-    required this.message,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        CircleAvatar(radius: 16, backgroundImage: NetworkImage(avatar)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(width: 8),
-                  Text(time, style: const TextStyle(fontSize: 12, color: Color(0xFFB0B0B0))),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(message, style: const TextStyle(fontSize: 14)),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class CustomBottomNavBar extends StatelessWidget {
-  const CustomBottomNavBar({super.key});
+class _InfoCard extends StatelessWidget {
+  final String title;
+  final Widget child;
+  const _InfoCard({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(bottom: 24, top: 12),
-      decoration: const BoxDecoration(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 20),
-        ],
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _softBorder),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
-          NavItem(icon: Icons.home_outlined, label: 'Home'),
-          NavItem(icon: Icons.folder_rounded, label: 'PROJECT', isActive: true),
-          NavItem(icon: Icons.notifications_none_rounded, label: 'Notifications'),
-          NavItem(icon: Icons.chat_bubble_outline_rounded, label: 'Chat'),
-          NavItem(icon: Icons.person_outline_rounded, label: 'Profile'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title.toUpperCase(),
+            style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          child,
         ],
       ),
     );
   }
 }
 
-class NavItem extends StatelessWidget {
-  final IconData icon;
+class _Badge extends StatelessWidget {
   final String label;
-  final bool isActive;
-
-  const NavItem({super.key, required this.icon, required this.label, this.isActive = false});
+  final Color color;
+  const _Badge({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: isActive
-              ? BoxDecoration(
-            color: const Color(0xFFF3F0FF),
-            borderRadius: BorderRadius.circular(16),
-          )
-              : null,
-          child: Icon(icon, color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0)),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? const Color(0xFF6C63FF) : const Color(0xFFB0B0B0),
-          ),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 }

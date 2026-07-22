@@ -360,8 +360,13 @@ class _KanbanScreenState extends State<KanbanScreen> {
             ...members.map((m) => ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 20),
               leading: CircleAvatar(
-                backgroundImage: m['avatarUrl'] != null ? NetworkImage(m['avatarUrl']) : null,
-                child: m['avatarUrl'] == null ? const Icon(Icons.person) : null,
+                backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+                child: Text(
+                  (m['fullName'] ?? m['email'] ?? '?').toString().isNotEmpty
+                      ? (m['fullName'] ?? m['email']).toString().trim()[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
+                ),
               ),
               title: Text(m['fullName'] ?? m['email']),
               subtitle: Text(m['roleName']),

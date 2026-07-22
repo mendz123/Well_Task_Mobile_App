@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -25,12 +25,6 @@ class OnboardingScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const AppLogo(),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pushReplacementNamed(context, '/home');
-                              },
-                              child: const Text('Skip', style: TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold, fontSize: 16)),
-                            ),
                           ],
                         ),
                         const Spacer(),
