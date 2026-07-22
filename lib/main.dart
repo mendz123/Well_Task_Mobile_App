@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/services/deep_link_service.dart';
+import 'core/services/notification_service.dart';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 import 'screens/Auth/login.dart';
@@ -36,13 +37,11 @@ class WellTaskApp extends StatefulWidget {
 }
 
 class _WellTaskAppState extends State<WellTaskApp> {
-  // Key quan trọng để quản lý Navigator từ Service bên ngoài
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
-    // Khởi tạo Deep Link Service ngay lập tức nhưng xử lý UI thông qua GlobalKey
     DeepLinkService().init(_navigatorKey);
   }
 
@@ -55,7 +54,7 @@ class _WellTaskAppState extends State<WellTaskApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: _navigatorKey, // Gán key để Service có thể gọi Navigator
+      navigatorKey: _navigatorKey,
       title: 'WellTask',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -67,36 +66,12 @@ class _WellTaskAppState extends State<WellTaskApp> {
         ),
         fontFamily: 'Inter',
         textTheme: const TextTheme(
-          displayLarge: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF6C63FF),
-          ),
-          displaySmall: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          headlineLarge: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          headlineMedium: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          titleLarge: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
-          titleMedium: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1A1A),
-          ),
+          displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+          displaySmall: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+          titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
           bodyLarge: TextStyle(fontSize: 14, color: Color(0xFF666666)),
           bodyMedium: TextStyle(fontSize: 13, color: Color(0xFF666666)),
         ),
@@ -130,6 +105,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final _notifSvc = NotificationService();
 
   final List<Widget> _screens = const [
     DashboardScreen(),
@@ -142,50 +118,76 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
-    // Kiểm tra xem có lời mời dự án nào đang chờ xử lý hay không
     DeepLinkService().checkPendingInvitation();
+    _notifSvc.addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    _notifSvc.removeListener(_rebuild);
+    super.dispose();
+  }
+
+  void _rebuild() => setState(() {});
+
+  Widget _withBadge(Widget icon, int count) {
+    if (count <= 0) return icon;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        icon,
+        Positioned(
+          right: -6,
+          top: -6,
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+            child: Text(
+              count > 99 ? '99+' : '$count',
+              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final unread = _notifSvc.unreadCount;
+
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-        },
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
         backgroundColor: Colors.white,
         indicatorColor: const Color(0xFF6C63FF).withValues(alpha: 0.12),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF6C63FF)),
             label: 'Home',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.folder_outlined),
             selectedIcon: Icon(Icons.folder_rounded, color: Color(0xFF6C63FF)),
             label: 'Projects',
           ),
           NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(
-              Icons.notifications_rounded,
-              color: Color(0xFF6C63FF),
-            ),
+            icon: _withBadge(const Icon(Icons.notifications_outlined), unread),
+            selectedIcon: _withBadge(const Icon(Icons.notifications_rounded, color: Color(0xFF6C63FF)), unread),
             label: 'Alerts',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline_rounded),
-            selectedIcon: Icon(
-              Icons.chat_bubble_rounded,
-              color: Color(0xFF6C63FF),
-            ),
+            selectedIcon: Icon(Icons.chat_bubble_rounded, color: Color(0xFF6C63FF)),
             label: 'Chat',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(Icons.person_rounded, color: Color(0xFF6C63FF)),
             label: 'Profile',

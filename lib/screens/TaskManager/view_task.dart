@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/project_service.dart';
 import '../../core/services/task_service.dart';
 
@@ -217,6 +218,28 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
   }
 
   Future<void> _openDetail(dynamic task) async {
+    // Determine current user's role in this project from the members list
+    final myId = await AuthService.getUserId();
+    String myRole = 'Member';
+    for (final m in _members) {
+      final uid = _asInt(m['userId'] ?? m['UserId'] ?? m['user']?['userId']);
+      if (uid != null && uid == myId) {
+        myRole = _text(m['roleName'] ?? m['RoleName'] ?? m['role'] ?? m['Role'], 'Member');
+        break;
+      }
+    }
+    // Fallback: check selected project userRole if member role wasn't found or was Member
+    if (myRole == 'Member' && _projectId != null) {
+      final prj = _projects.firstWhere(
+        (p) => _asInt(p['projectId'] ?? p['ProjectId']) == _projectId,
+        orElse: () => null,
+      );
+      if (prj != null) {
+        final prjRole = _text(prj['userRole'] ?? prj['UserRole']);
+        if (prjRole.isNotEmpty) myRole = prjRole;
+      }
+    }
+
     final result = await Navigator.pushNamed(
       context,
       '/tasks/detail',
@@ -228,6 +251,7 @@ class _TaskManagerScreenState extends State<TaskManagerScreen> {
         'priorities': _priorities,
         'members': _members,
         'epics': _epics,
+        'userRole': myRole,
       },
     );
     if (result == true) _loadBoard();

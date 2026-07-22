@@ -12,7 +12,31 @@ class AuthService {
   /// Get stored userId
   static Future<int> getUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(keyUserId) ?? 0;
+    final storedId = prefs.getInt(keyUserId);
+    if (storedId != null && storedId > 0) return storedId;
+
+    final token = prefs.getString(keyAccessToken);
+    if (token != null && token.isNotEmpty) {
+      try {
+        final parts = token.split('.');
+        if (parts.length == 3) {
+          final normalized = base64Url.normalize(parts[1]);
+          final payload = utf8.decode(base64Url.decode(normalized));
+          final map = jsonDecode(payload);
+          final rawId = map['nameid'] ??
+              map['sub'] ??
+              map['UserId'] ??
+              map['userId'] ??
+              map['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
+          final parsedId = int.tryParse(rawId?.toString() ?? '') ?? 0;
+          if (parsedId > 0) {
+            await prefs.setInt(keyUserId, parsedId);
+            return parsedId;
+          }
+        }
+      } catch (_) {}
+    }
+    return 0;
   }
 
   /// Get stored display name
@@ -37,6 +61,7 @@ class AuthService {
           'password': password,
         }),
       );
+
       if (response.statusCode == 201 || response.statusCode == 200) {
         dynamic responseData;
         if (response.body.isNotEmpty) {
@@ -77,6 +102,7 @@ class AuthService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final token = data['accessToken'] ?? data['token'];
@@ -98,6 +124,13 @@ class AuthService {
         } else {
           return {'success': false, 'message': 'Token missing in response'};
         }
+        // if (token != null) {
+        //   await prefs.setString(keyAccessToken, token);
+        //   await prefs.setString(keyUserEmail, email);
+        //   return {'success': true, 'data': data};
+        // } else {
+        //   return {'success': false, 'message': 'Token missing in response'};
+        // }
       } else {
         var message = 'Login failed';
         try {
@@ -107,9 +140,7 @@ class AuthService {
           } else if (err['title'] != null) {
             message = err['title'];
           }
-        } catch (_) {
-          if (response.body.isNotEmpty) message = response.body;
-        }
+        }catch (_) {}
         return {'success': false, 'message': message};
       }
     } catch (e) {

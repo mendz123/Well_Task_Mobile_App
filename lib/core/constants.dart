@@ -1,25 +1,28 @@
-import 'package:flutter/foundation.dart';
-
 class ApiConstants {
   // Automatically select the correct base URL based on platform:
   // - Web / Desktop / iOS Simulator: http://localhost:5018/api
   // - Android Emulator: http://10.0.2.2:5018/api
-  static String get baseHost {
-    if (kIsWeb) {
-      return 'http://localhost:5018';
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:5018';
-    } else {
-      return 'http://localhost:5018';
-    }
-  }
+  // static String get baseUrl {
+  //   if (kIsWeb) {
+  //     return 'http://localhost:5018/api';
+  //   } else if (defaultTargetPlatform == TargetPlatform.android) {
+  //     return 'http://192.168.1.42/api';
+  //   } else {
+  //     return 'http://localhost:5018/api';
+  //   }
+  // }
 
-  static String get baseUrl => '$baseHost/api';
-  static String get hubUrl => '$baseHost/chatHub';
+  // // static  String baseUrl = 'http://192.168.1.42:5018';
+  // static String baseHost = '$baseUrl/api';
+  // static  String hubUrl = '$baseUrl/chatHub';
+
+
+  static const String baseHost = 'http://192.168.1.42:5018';
+  static const String baseUrl = '$baseHost/api';
+  static const String hubUrl = '$baseHost/chatHub';
 
   // Chat Endpoints
-  static String chatHistory(int projectId) =>
-      '$baseUrl/chat/$projectId/history';
+  static String chatHistory(int projectId) => '$baseUrl/chat/$projectId/history';
 
   // Auth Endpoints
   static String get login => '$baseUrl/auth/login';
@@ -30,12 +33,10 @@ class ApiConstants {
   static String projectDetail(int id) => '$baseUrl/projects/$id';
   static String inviteMember(int id) => '$baseUrl/projects/$id/invite';
   static String leaveProject(int id) => '$baseUrl/projects/$id/leave';
-
+  
   // Leave request handling (Guid based)
-  static String approveLeaveRequest(String requestId) =>
-      '$baseUrl/projects/leave-requests/$requestId/approve';
-  static String rejectLeaveRequest(String requestId) =>
-      '$baseUrl/projects/leave-requests/$requestId/reject';
+  static String approveLeaveRequest(String requestId) => '$baseUrl/projects/leave-requests/$requestId/approve';
+  static String rejectLeaveRequest(String requestId) => '$baseUrl/projects/leave-requests/$requestId/reject';
 
   // User Profile Endpoints
   static String get userProfile => '$baseUrl/users/me';
@@ -55,4 +56,13 @@ class ApiConstants {
 
   static String get taskStatuses => '$baseUrl/task-statuses';
   static String taskStatus(int id) => '$baseUrl/task-statuses/$id';
+
+  // Comments Endpoints (OData - under baseHost, not baseUrl)
+  static String get comments => '$baseHost/odata/Comments';
+  static String commentsByTask(int taskId) => '$baseHost/odata/Comments?\$filter=TaskId eq $taskId&\$expand=User(\$expand=UserProfile)&\$orderby=CreatedAt asc';
+  static String commentDetail(int commentId) => '$baseHost/odata/Comments($commentId)';
+
+  // Notifications Endpoints (OData - under baseHost, not baseUrl)
+  static String odataNotifications(int userId) => '$baseHost/odata/Notifications?\$filter=UserId eq $userId&\$orderby=CreatedAt desc';
+  static String odataNotificationPatch(int id) => '$baseHost/odata/Notifications($id)';
 }

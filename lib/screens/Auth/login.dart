@@ -147,20 +147,6 @@ class _LoginFormCardState extends State<LoginFormCard> {
             iconPath: 'assets/google_logo.png',
             onPressed: () {},
           ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/home');
-            },
-            child: const Text(
-              'Skip to Dashboard (Demo Mode)',
-              style: TextStyle(
-                color: Color(0xFF6C63FF),
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-          ),
         ],
       ),
     );

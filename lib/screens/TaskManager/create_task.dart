@@ -110,8 +110,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       _epics = tasks
           .where(
             (task) =>
-                _asInt(task['parentTaskId'] ?? task['ParentTaskId']) == null,
-          )
+        _asInt(task['parentTaskId'] ?? task['ParentTaskId']) == null,
+      )
           .toList();
       _statusId ??= _statuses.isNotEmpty ? _statusIdOf(_statuses.first) : null;
       _priorityId ??= _priorities.isNotEmpty
@@ -267,146 +267,146 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       body: _loadingLookups
           ? const Center(child: CircularProgressIndicator())
           : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  _Field(
-                    label: 'Title',
-                    child: TextFormField(
-                      controller: _titleController,
-                      maxLength: 200,
-                      decoration: const InputDecoration(hintText: 'Task title'),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Title is required.';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  _Field(
-                    label: 'Description',
-                    child: TextFormField(
-                      controller: _descriptionController,
-                      maxLength: 2000,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: 'Task description',
-                      ),
-                    ),
-                  ),
-                  _Dropdown<int?>(
-                    label: 'Task type',
-                    value: _parentTaskId,
-                    items: [
-                      const DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('Epic / Parent Task'),
-                      ),
-                      ..._epics
-                          .where(
-                            (epic) =>
-                                _task == null ||
-                                _taskIdOf(epic) != _taskIdOf(_task),
-                          )
-                          .map(
-                            (epic) => DropdownMenuItem<int?>(
-                              value: _taskIdOf(epic),
-                              child: Text('Sub-task of: ${_epicTitle(epic)}'),
-                            ),
-                          ),
-                    ],
-                    onChanged: (value) => setState(() => _parentTaskId = value),
-                  ),
-                  _Dropdown<int>(
-                    label: 'Status',
-                    value: _statusId,
-                    items: _statuses
-                        .map(
-                          (status) => DropdownMenuItem<int>(
-                            value: _statusIdOf(status),
-                            child: Text(_statusName(status)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _statusId = value),
-                  ),
-                  _Dropdown<int>(
-                    label: 'Priority',
-                    value: _priorityId,
-                    items: _priorities
-                        .map(
-                          (priority) => DropdownMenuItem<int>(
-                            value: _priorityIdOf(priority),
-                            child: Text(_priorityName(priority)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setState(() => _priorityId = value),
-                  ),
-                  _Dropdown<int?>(
-                    label: 'Assignee',
-                    value: _assigneeId,
-                    items: [
-                      const DropdownMenuItem<int?>(
-                        value: null,
-                        child: Text('Unassigned'),
-                      ),
-                      ..._members.map(
-                        (member) => DropdownMenuItem<int?>(
-                          value: _memberIdOf(member),
-                          child: Text(_memberName(member)),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() => _assigneeId = value),
-                  ),
-                  _Field(
-                    label: 'Due date',
-                    child: InkWell(
-                      onTap: _pickDueDate,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          suffixIcon: Icon(Icons.calendar_today_rounded),
-                        ),
-                        child: Text(
-                          _dueDate == null
-                              ? 'Select due date'
-                              : _dueDate!.toIso8601String().split('T').first,
-                        ),
-                      ),
-                    ),
-                  ),
-                  _Field(
-                    label: 'Estimate hours',
-                    child: TextFormField(
-                      controller: _estimateController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(hintText: '0'),
-                      validator: (value) {
-                        final text = value?.trim() ?? '';
-                        if (text.isEmpty) {
-                          return null;
-                        }
-                        final number = double.tryParse(text);
-                        if (number == null) {
-                          return 'Estimate hours must be a number.';
-                        }
-                        if (number < 0) {
-                          return 'Estimate hours cannot be negative.';
-                        }
-                        if (number > 999.99) {
-                          return 'Estimate hours must be less than 1000.';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            _Field(
+              label: 'Title',
+              child: TextFormField(
+                controller: _titleController,
+                maxLength: 200,
+                decoration: const InputDecoration(hintText: 'Task title'),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Title is required.';
+                  }
+                  return null;
+                },
               ),
             ),
+            _Field(
+              label: 'Description',
+              child: TextFormField(
+                controller: _descriptionController,
+                maxLength: 2000,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: 'Task description',
+                ),
+              ),
+            ),
+            _Dropdown<int?>(
+              label: 'Task type',
+              value: _parentTaskId,
+              items: [
+                const DropdownMenuItem<int?>(
+                  value: null,
+                  child: Text('Epic / Parent Task'),
+                ),
+                ..._epics
+                    .where(
+                      (epic) =>
+                  _task == null ||
+                      _taskIdOf(epic) != _taskIdOf(_task),
+                )
+                    .map(
+                      (epic) => DropdownMenuItem<int?>(
+                    value: _taskIdOf(epic),
+                    child: Text('Sub-task of: ${_epicTitle(epic)}'),
+                  ),
+                ),
+              ],
+              onChanged: (value) => setState(() => _parentTaskId = value),
+            ),
+            _Dropdown<int>(
+              label: 'Status',
+              value: _statusId,
+              items: _statuses
+                  .map(
+                    (status) => DropdownMenuItem<int>(
+                  value: _statusIdOf(status),
+                  child: Text(_statusName(status)),
+                ),
+              )
+                  .toList(),
+              onChanged: (value) => setState(() => _statusId = value),
+            ),
+            _Dropdown<int>(
+              label: 'Priority',
+              value: _priorityId,
+              items: _priorities
+                  .map(
+                    (priority) => DropdownMenuItem<int>(
+                  value: _priorityIdOf(priority),
+                  child: Text(_priorityName(priority)),
+                ),
+              )
+                  .toList(),
+              onChanged: (value) => setState(() => _priorityId = value),
+            ),
+            _Dropdown<int?>(
+              label: 'Assignee',
+              value: _assigneeId,
+              items: [
+                const DropdownMenuItem<int?>(
+                  value: null,
+                  child: Text('Unassigned'),
+                ),
+                ..._members.map(
+                      (member) => DropdownMenuItem<int?>(
+                    value: _memberIdOf(member),
+                    child: Text(_memberName(member)),
+                  ),
+                ),
+              ],
+              onChanged: (value) => setState(() => _assigneeId = value),
+            ),
+            _Field(
+              label: 'Due date',
+              child: InkWell(
+                onTap: _pickDueDate,
+                borderRadius: BorderRadius.circular(12),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    suffixIcon: Icon(Icons.calendar_today_rounded),
+                  ),
+                  child: Text(
+                    _dueDate == null
+                        ? 'Select due date'
+                        : _dueDate!.toIso8601String().split('T').first,
+                  ),
+                ),
+              ),
+            ),
+            _Field(
+              label: 'Estimate hours',
+              child: TextFormField(
+                controller: _estimateController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(hintText: '0'),
+                validator: (value) {
+                  final text = value?.trim() ?? '';
+                  if (text.isEmpty) {
+                    return null;
+                  }
+                  final number = double.tryParse(text);
+                  if (number == null) {
+                    return 'Estimate hours must be a number.';
+                  }
+                  if (number < 0) {
+                    return 'Estimate hours cannot be negative.';
+                  }
+                  if (number > 999.99) {
+                    return 'Estimate hours must be less than 1000.';
+                  }
+                  return null;
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -479,19 +479,22 @@ class _Dropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasMatch = value == null || items.any((item) => item.value == value);
+    final safeValue = hasMatch ? value : (items.isNotEmpty ? items.first.value : null);
+
     return _Field(
       label: label,
       child: DropdownButtonFormField<T>(
-        initialValue: value,
+        initialValue: safeValue,
         isExpanded: true,
         decoration: const InputDecoration(),
         items: items,
         onChanged: onChanged,
-        validator: (value) {
-          if (label == 'Status' && value == null) {
+        validator: (val) {
+          if (label == 'Status' && val == null) {
             return 'Status is required.';
           }
-          if (label == 'Priority' && value == null) {
+          if (label == 'Priority' && val == null) {
             return 'Priority is required.';
           }
           return null;
