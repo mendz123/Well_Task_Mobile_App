@@ -44,4 +44,18 @@ class ApiConstants {
   static String get userProfile => '$baseUrl/users/me';
   static String get changePassword => '$baseUrl/users/me/change-password';
   static String get uploadAvatar => '$baseUrl/users/me/avatar';
+
+  // TaskManage Endpoints
+  static String get tasks => '$baseUrl/tasks';
+  static String tasksByProject(int projectId) =>
+      '$baseUrl/tasks/project/$projectId';
+  static String taskDetail(int id) => '$baseUrl/tasks/$id';
+  static String taskLookups(int projectId) =>
+      '$baseUrl/tasks/lookups/$projectId';
+  static String assignTask(int id) => '$baseUrl/tasks/$id/assign';
+  static String taskAssignee(int id) => '$baseUrl/tasks/$id/assignee';
+  static String selfAssignTask(int id) => '$baseUrl/tasks/$id/self-assign';
+
+  static String get taskStatuses => '$baseUrl/task-statuses';
+  static String taskStatus(int id) => '$baseUrl/task-statuses/$id';
 }

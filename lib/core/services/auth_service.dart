@@ -8,16 +8,19 @@ class AuthService {
   static const String keyUserEmail = 'UserEmail';
   static const String keyUserId = 'UserId';
   static const String keyUserName = 'UserName';
+
   /// Get stored userId
   static Future<int> getUserId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(keyUserId) ?? 0;
   }
+
   /// Get stored display name
   static Future<String> getUserName() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(keyUserName) ?? 'User';
   }
+
   /// Register a new user
   static Future<Map<String, dynamic>> register({
     required String fullName,
@@ -73,10 +76,7 @@ class AuthService {
       final response = await http.post(
         Uri.parse(ApiConstants.login),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
+        body: jsonEncode({'email': email, 'password': password}),
       );
 
       if (response.statusCode == 200) {

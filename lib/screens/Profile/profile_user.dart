@@ -38,9 +38,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showEditProfileDialog() {
-    final nameController = TextEditingController(text: _userProfile?['fullName'] ?? _userProfile?['name'] ?? '');
-    final bioController = TextEditingController(text: _userProfile?['bio'] ?? '');
-    final phoneController = TextEditingController(text: _userProfile?['phoneNumber'] ?? _userProfile?['phone'] ?? '');
+    final nameController = TextEditingController(
+      text: _userProfile?['fullName'] ?? _userProfile?['name'] ?? '',
+    );
+    final bioController = TextEditingController(
+      text: _userProfile?['bio'] ?? '',
+    );
+    final phoneController = TextEditingController(
+      text: _userProfile?['phoneNumber'] ?? _userProfile?['phone'] ?? '',
+    );
 
     showDialog(
       context: context,
@@ -49,8 +55,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                'Edit Profile',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -92,7 +103,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6C63FF),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: isUpdating
                       ? null
@@ -109,17 +122,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           if (res['success'] == true) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Profile updated successfully!')),
+                              const SnackBar(
+                                content: Text('Profile updated successfully!'),
+                              ),
                             );
                             _loadProfile();
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(res['message'] ?? 'Failed to update profile')),
+                              SnackBar(
+                                content: Text(
+                                  res['message'] ?? 'Failed to update profile',
+                                ),
+                              ),
                             );
                           }
                         },
                   child: isUpdating
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
                       : const Text('Save'),
                 ),
               ],
@@ -142,8 +168,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text(
+                'Change Password',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -186,7 +217,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6C63FF),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: isSubmitting
                       ? null
@@ -195,16 +228,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           final newPass = newPassController.text;
                           final confirmPass = confirmPassController.text;
 
-                          if (currentPass.isEmpty || newPass.isEmpty || confirmPass.isEmpty) {
+                          if (currentPass.isEmpty ||
+                              newPass.isEmpty ||
+                              confirmPass.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please fill all password fields')),
+                              const SnackBar(
+                                content: Text(
+                                  'Please fill all password fields',
+                                ),
+                              ),
                             );
                             return;
                           }
 
                           if (newPass != confirmPass) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('New passwords do not match')),
+                              const SnackBar(
+                                content: Text('New passwords do not match'),
+                              ),
                             );
                             return;
                           }
@@ -221,16 +262,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           if (res['success'] == true) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(res['message'] ?? 'Password changed successfully!')),
+                              SnackBar(
+                                content: Text(
+                                  res['message'] ??
+                                      'Password changed successfully!',
+                                ),
+                              ),
                             );
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(res['message'] ?? 'Failed to change password')),
+                              SnackBar(
+                                content: Text(
+                                  res['message'] ?? 'Failed to change password',
+                                ),
+                              ),
                             );
                           }
                         },
                   child: isSubmitting
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
                       : const Text('Update'),
                 ),
               ],
@@ -244,25 +301,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _handleLogout() async {
     await AuthService.logout();
     if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final name = _userProfile?['fullName'] ?? _userProfile?['name'] ?? _userProfile?['userName'] ?? 'User';
+    final name =
+        _userProfile?['fullName'] ??
+        _userProfile?['name'] ??
+        _userProfile?['userName'] ??
+        'User';
     final email = _userProfile?['email'] ?? 'No email provided';
-    final bio = _userProfile?['bio'] ?? _userProfile?['description'] ?? 'No bio added yet.';
-    final phone = _userProfile?['phoneNumber'] ?? _userProfile?['phone'] ?? 'Not set';
+    final bio =
+        _userProfile?['bio'] ??
+        _userProfile?['description'] ??
+        'No bio added yet.';
+    final phone =
+        _userProfile?['phoneNumber'] ?? _userProfile?['phone'] ?? 'Not set';
     final joinDate = _userProfile?['createdAt'] != null
         ? _userProfile!['createdAt'].toString().split('T')[0]
         : (_userProfile?['joinDate'] ?? 'N/A');
-    final avatarUrl = _userProfile?['avatarUrl'] ?? 'https://i.pravatar.cc/100?img=12';
+    final avatarUrl =
+        _userProfile?['avatarUrl'] ?? 'https://i.pravatar.cc/100?img=12';
 
     return Scaffold(
       backgroundColor: const Color(0xFFFCF8FF),
       appBar: ProfileAppBar(onRefresh: _loadProfile),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6C63FF)),
+            )
           : RefreshIndicator(
               onRefresh: _loadProfile,
               color: const Color(0xFF6C63FF),
@@ -322,12 +393,20 @@ class ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
             color: Color(0xFFF3F0FF),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.grid_view_rounded, color: Color(0xFF6C63FF), size: 20),
+          child: const Icon(
+            Icons.grid_view_rounded,
+            color: Color(0xFF6C63FF),
+            size: 20,
+          ),
         ),
       ),
       title: const Text(
         'WellTask',
-        style: TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold, fontSize: 20),
+        style: TextStyle(
+          color: Color(0xFF6C63FF),
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+        ),
       ),
       actions: [
         IconButton(
@@ -398,7 +477,11 @@ class ProfileHeaderCard extends StatelessWidget {
                       color: Color(0xFF6C63FF),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.edit_rounded, color: Colors.white, size: 18),
+                    child: const Icon(
+                      Icons.edit_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
               ),
@@ -418,11 +501,19 @@ class ProfileHeaderCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.calendar_today_rounded, size: 14, color: Color(0xFF6C63FF)),
+                const Icon(
+                  Icons.calendar_today_rounded,
+                  size: 14,
+                  color: Color(0xFF6C63FF),
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Joined: $joinDate',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF666666), fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF666666),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -461,9 +552,16 @@ class PersonalInfoSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Personal Information', style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'Personal Information',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 20, color: Color(0xFF6C63FF)),
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  size: 20,
+                  color: Color(0xFF6C63FF),
+                ),
                 onPressed: onEditPressed,
                 tooltip: 'Edit Profile',
               ),
@@ -493,7 +591,11 @@ class PersonalInfoSection extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.phone_outlined, size: 18, color: Color(0xFF666666)),
+                const Icon(
+                  Icons.phone_outlined,
+                  size: 18,
+                  color: Color(0xFF666666),
+                ),
                 const SizedBox(width: 12),
                 Text(phone, style: Theme.of(context).textTheme.bodyMedium),
               ],
@@ -513,7 +615,11 @@ class LabelText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)),
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF1A1A1A),
+      ),
     );
   }
 }
@@ -544,7 +650,9 @@ class SkillsSection extends StatelessWidget {
                 onPressed: () {},
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Add'),
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFF6C63FF)),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF6C63FF),
+                ),
               ),
             ],
           ),
@@ -553,13 +661,21 @@ class SkillsSection extends StatelessWidget {
             spacing: 8,
             runSpacing: 10,
             children: skills
-                .map((skill) => Chip(
-                      label: Text(skill),
-                      backgroundColor: const Color(0xFFF3F0FF),
-                      side: BorderSide.none,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      labelStyle: const TextStyle(fontSize: 13, color: Color(0xFF6C63FF), fontWeight: FontWeight.w500),
-                    ))
+                .map(
+                  (skill) => Chip(
+                    label: Text(skill),
+                    backgroundColor: const Color(0xFFF3F0FF),
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    labelStyle: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF6C63FF),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -589,7 +705,9 @@ class PrimaryOutlineButton extends StatelessWidget {
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -598,7 +716,11 @@ class PrimaryOutlineButton extends StatelessWidget {
             const SizedBox(width: 12),
             Text(
               text,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF6C63FF),
+              ),
             ),
           ],
         ),
@@ -622,7 +744,9 @@ class LogoutButton extends StatelessWidget {
           backgroundColor: const Color(0xFFFFEBEB),
           foregroundColor: const Color(0xFFD32F2F),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

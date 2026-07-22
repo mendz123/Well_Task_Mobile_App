@@ -7,12 +7,11 @@ import '../../core/services/auth_service.dart';
 import '../../core/services/chat_service.dart';
 import '../../core/services/project_service.dart';
 
-
 // ─── Screen 1: Project List (chọn nhóm để chat) ─────────────────────────────
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
-@override
-State<ChatScreen> createState() => _ChatScreenState();
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
@@ -23,72 +22,86 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _loadProjects();
   }
+
   Future<void> _loadProjects() async {
     setState(() => _isLoading = true);
     try {
       final raw = await ProjectService.getAllProjects();
       setState(() {
-        _projects = raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _projects = raw
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
         _isLoading = false;
       });
     } catch (_) {
       setState(() => _isLoading = false);
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: const Color(0xFFF8F9FF),
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          title: const Text(
-            'Group Chats',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1A1A),
-            ),
+      backgroundColor: const Color(0xFFF8F9FF),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Group Chats',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1A1A1A),
           ),
-          centerTitle: false,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded, color: Color(0xFF6C63FF)),
-              onPressed: _loadProjects,
-            ),
-          ],
         ),
-
-          body: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
-              : _projects.isEmpty
-              ? _buildEmpty()
-              : RefreshIndicator(
-            onRefresh: _loadProjects,
-            color: const Color(0xFF6C63FF),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: _projects.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final project = _projects[index];
-                final id = project['projectId'] ?? project['id'] ?? 0;
-                final name = project['projectName'] ?? project['name'] ?? 'Unknown Project';
-                return _ProjectChatCard(
-                  projectId: id as int,
-                  projectName: name.toString(),
-                );
-              },
-            ),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF6C63FF)),
+            onPressed: _loadProjects,
           ),
-        );
-    }
+        ],
+      ),
+
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6C63FF)),
+            )
+          : _projects.isEmpty
+          ? _buildEmpty()
+          : RefreshIndicator(
+              onRefresh: _loadProjects,
+              color: const Color(0xFF6C63FF),
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: _projects.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final project = _projects[index];
+                  final id = project['projectId'] ?? project['id'] ?? 0;
+                  final name =
+                      project['projectName'] ??
+                      project['name'] ??
+                      'Unknown Project';
+                  return _ProjectChatCard(
+                    projectId: id as int,
+                    projectName: name.toString(),
+                  );
+                },
+              ),
+            ),
+    );
+  }
+
   Widget _buildEmpty() {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.chat_bubble_outline_rounded, size: 64, color: Colors.grey.shade300),
+          Icon(
+            Icons.chat_bubble_outline_rounded,
+            size: 64,
+            color: Colors.grey.shade300,
+          ),
           const SizedBox(height: 12),
           const Text(
             'No projects found.',
@@ -118,10 +131,8 @@ class _ProjectChatCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ChatRoomScreen(
-              projectId: projectId,
-              projectName: projectName,
-            ),
+            builder: (_) =>
+                ChatRoomScreen(projectId: projectId, projectName: projectName),
           ),
         );
       },
@@ -149,7 +160,11 @@ class _ProjectChatCard extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.people_alt_rounded, color: Colors.white, size: 26),
+              child: const Icon(
+                Icons.people_alt_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -167,7 +182,10 @@ class _ProjectChatCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Tap to open chat',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF999999)),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF999999),
+                    ),
                   ),
                 ],
               ),
@@ -222,22 +240,30 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _setupChatService();
     await _loadHistory();
   }
+
   Future<void> _loadHistory() async {
     try {
-      final response = await ApiClient.get(ApiConstants.chatHistory(widget.projectId));
+      final response = await ApiClient.get(
+        ApiConstants.chatHistory(widget.projectId),
+      );
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         final List<dynamic> data = body['data'] ?? [];
         if (mounted) {
           setState(() {
             _messages.clear();
-            _messages.addAll(data.map((e) => ChatMessage.fromJson(Map<String, dynamic>.from(e))));
+            _messages.addAll(
+              data.map(
+                (e) => ChatMessage.fromJson(Map<String, dynamic>.from(e)),
+              ),
+            );
           });
           _scrollToBottom();
         }
       }
     } catch (_) {}
   }
+
   void _setupChatService() {
     _chatService.onMessageReceived = (msg) {
       if (!mounted) return;
@@ -265,7 +291,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _chatService.onError = (msg) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar  (content: Text('Error: $msg'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error: $msg'), backgroundColor: Colors.red),
       );
     };
 
@@ -275,8 +301,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         _isConnecting = false;
         _isConnected = true;
       });
-      _chatService.joinRoom(widget.projectId,
-          senderId: _myUserId, displayName: _myDisplayName);
+      _chatService.joinRoom(
+        widget.projectId,
+        senderId: _myUserId,
+        displayName: _myDisplayName,
+      );
     };
 
     _chatService.onDisconnected = () {
@@ -339,7 +368,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Color(0xFF666666), size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_rounded,
+            color: Color(0xFF666666),
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
@@ -359,7 +392,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: _isConnected ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                    color: _isConnected
+                        ? const Color(0xFF22C55E)
+                        : const Color(0xFFEF4444),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -368,11 +403,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   _isConnecting
                       ? 'Connecting...'
                       : _isConnected
-                          ? 'Online'
-                          : 'Disconnected',
+                      ? 'Online'
+                      : 'Disconnected',
                   style: TextStyle(
                     fontSize: 11,
-                    color: _isConnected ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                    color: _isConnected
+                        ? const Color(0xFF22C55E)
+                        : const Color(0xFFEF4444),
                   ),
                 ),
               ],
@@ -382,8 +419,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       ),
       body: Column(
         children: [
-
-
           // Message list
           Expanded(
             child: _isConnecting && _messages.isEmpty
@@ -393,36 +428,40 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       children: [
                         CircularProgressIndicator(color: Color(0xFF6C63FF)),
                         SizedBox(height: 12),
-                        Text('Connecting to chat...', style: TextStyle(color: Color(0xFF999999))),
+                        Text(
+                          'Connecting to chat...',
+                          style: TextStyle(color: Color(0xFF999999)),
+                        ),
                       ],
                     ),
                   )
                 : _messages.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No messages yet.\nSay hello! 👋',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFF999999), fontSize: 14),
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                        itemCount: _messages.length,
-                        itemBuilder: (context, index) {
-                          final msg = _messages[index];
-                          final isMe = msg.senderId == _myUserId;
-                          final showDate = index == 0 ||
-                              !_isSameDay(_messages[index - 1].sentAt, msg.sentAt);
-                          return Column(
-                            children: [
-                              if (showDate)
-                                if (showDate) _DateDivider(date: msg.sentAt),
-                              _ChatBubble(message: msg, isMe: isMe),
-                            ],
-                          );
-                        },
-                      ),
+                ? const Center(
+                    child: Text(
+                      'No messages yet.\nSay hello! 👋',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFF999999), fontSize: 14),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = _messages[index];
+                      final isMe = msg.senderId == _myUserId;
+                      final showDate =
+                          index == 0 ||
+                          !_isSameDay(_messages[index - 1].sentAt, msg.sentAt);
+                      return Column(
+                        children: [
+                          if (showDate)
+                            if (showDate) _DateDivider(date: msg.sentAt),
+                          _ChatBubble(message: msg, isMe: isMe),
+                        ],
+                      );
+                    },
+                  ),
           ),
 
           // Typing indicator
@@ -468,7 +507,9 @@ class _DateDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     String label;
-    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
       label = 'Today';
     } else {
       label = '${date.day}/${date.month}/${date.year}';
@@ -483,7 +524,11 @@ class _DateDivider extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 10, color: Color(0xFF666666), fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            fontSize: 10,
+            color: Color(0xFF666666),
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     );
@@ -504,34 +549,53 @@ class _ChatBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           if (!isMe)
             Padding(
               padding: const EdgeInsets.only(left: 36, bottom: 3),
               child: Text(
                 message.senderName,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF999999), fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF999999),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           Row(
-            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment: isMe
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (!isMe) ...[
                 CircleAvatar(
                   radius: 14,
-                  backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+                  backgroundColor: const Color(
+                    0xFF6C63FF,
+                  ).withValues(alpha: 0.15),
                   child: Text(
-                    message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
+                    message.senderName.isNotEmpty
+                        ? message.senderName[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6C63FF),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
               ],
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.68,
                   ),
@@ -563,14 +627,23 @@ class _ChatBubble extends StatelessWidget {
               ),
               if (isMe) ...[
                 const SizedBox(width: 6),
-                Text(time, style: const TextStyle(fontSize: 10, color: Color(0xFFB0B0B0))),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFFB0B0B0),
+                  ),
+                ),
               ],
             ],
           ),
           if (!isMe)
             Padding(
               padding: const EdgeInsets.only(left: 36, top: 2),
-              child: Text(time, style: const TextStyle(fontSize: 10, color: Color(0xFFB0B0B0))),
+              child: Text(
+                time,
+                style: const TextStyle(fontSize: 10, color: Color(0xFFB0B0B0)),
+              ),
             ),
         ],
       ),
@@ -613,7 +686,10 @@ class _ChatInputBar extends StatelessWidget {
                 maxLines: null,
                 decoration: InputDecoration(
                   hintText: isConnected ? 'Type a message...' : 'Connecting...',
-                  hintStyle: const TextStyle(color: Color(0xFFB0B0B0), fontSize: 14),
+                  hintStyle: const TextStyle(
+                    color: Color(0xFFB0B0B0),
+                    fontSize: 14,
+                  ),
                   border: InputBorder.none,
                 ),
               ),
@@ -626,10 +702,16 @@ class _ChatInputBar extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: isConnected ? const Color(0xFF6C63FF) : const Color(0xFFCCCCCC),
+                color: isConnected
+                    ? const Color(0xFF6C63FF)
+                    : const Color(0xFFCCCCCC),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.send_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
         ],

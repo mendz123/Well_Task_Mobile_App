@@ -66,14 +66,11 @@ class UserService {
     required String confirmPassword,
   }) async {
     try {
-      final response = await ApiClient.post(
-        ApiConstants.changePassword,
-        {
-          'currentPassword': currentPassword,
-          'newPassword': newPassword,
-          'confirmPassword': confirmPassword,
-        },
-      );
+      final response = await ApiClient.post(ApiConstants.changePassword, {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+        'confirmPassword': confirmPassword,
+      });
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         return {'success': true, 'message': 'Password changed successfully'};
