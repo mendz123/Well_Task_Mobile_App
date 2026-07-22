@@ -94,6 +94,30 @@ class _LoginFormCardState extends State<LoginFormCard> {
     }
   }
 
+  void _handleGoogleLogin() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final result = await AuthService.googleLogin();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (result['success'] == true) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      if (result['message'] != 'Google Sign-In was cancelled') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Google Login failed')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -145,7 +169,7 @@ class _LoginFormCardState extends State<LoginFormCard> {
           SocialLoginButton(
             text: 'Log In with Google',
             iconPath: 'assets/google_logo.png',
-            onPressed: () {},
+            onPressed: _handleGoogleLogin,
           ),
         ],
       ),

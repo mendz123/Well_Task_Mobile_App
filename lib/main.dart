@@ -21,11 +21,14 @@ import 'screens/TaskManager/create_task.dart';
 import 'screens/TaskManager/view_task.dart';
 
 // ── Other tabs ────────────────────────────────────────────────────────────────
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/Noti/notification.dart';
 import 'screens/Chat/chat_group.dart';
 import 'screens/Profile/profile_user.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   runApp(const WellTaskApp());
 }
 
