@@ -1,7 +1,26 @@
 import 'package:flutter/material.dart';
+import '../../core/services/auth_service.dart';
 
-class OnboardingScreen extends StatelessWidget {
+class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
+
+  @override
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends State<OnboardingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  void _checkLoginStatus() async {
+    final loggedIn = await AuthService.isLoggedIn();
+    if (loggedIn && mounted) {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
