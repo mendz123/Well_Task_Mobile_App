@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConstants {
   // Automatically select the correct base URL based on platform:
@@ -14,9 +15,14 @@ class ApiConstants {
     }
   }
 
+  // Google Client ID
+  static String get googleClientId =>
+      dotenv.env['GOOGLE_CLIENT_ID'] ?? '';
+
   // Auth Endpoints
   static String get login => '$baseUrl/auth/login';
   static String get register => '$baseUrl/auth/register';
+  static String get googleLogin => '$baseUrl/auth/google-login';
 
   // Project Endpoints
   static String get projects => '$baseUrl/projects';
