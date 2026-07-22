@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/comment_service.dart';
+import '../../core/services/notification_service.dart';
+import '../../core/services/project_service.dart';
 import '../../core/services/task_service.dart';
 
 const Color _primary = Color(0xFF6C63FF);
 const Color _surface = Color(0xFFFCF8FF);
 const Color _softBorder = Color(0xFFF3F0FF);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 int? _asInt(dynamic value) {
   if (value == null || value.toString().isEmpty) return null;
@@ -21,6 +27,25 @@ String _dateOnly(dynamic value) {
   return value.toString().split('T').first;
 }
 
+/// Avatar chữ cái đầu, không dùng ảnh mạng
+Widget _InitialsAvatar(String name, {double radius = 20}) {
+  final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: _primary.withValues(alpha: 0.15),
+    child: Text(
+      initial,
+      style: TextStyle(
+        fontSize: radius * 0.85,
+        fontWeight: FontWeight.bold,
+        color: _primary,
+      ),
+    ),
+  );
+}
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
+
 class TaskDetailScreen extends StatefulWidget {
   const TaskDetailScreen({super.key});
 
@@ -37,6 +62,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   List<dynamic> _priorities = [];
   List<dynamic> _members = [];
   List<dynamic> _epics = [];
+  String _myRole = 'Member'; // 'TeamLeader' | 'Member'
+  int _myUserId = 0;
+  String _myName = 'Me';
+
+  // Comments
+  List<Map<String, dynamic>> _comments = [];
+  bool _loadingComments = false;
+  bool _postingComment = false;
+  final TextEditingController _commentCtrl = TextEditingController();
 
   @override
   void didChangeDependencies() {
@@ -54,34 +88,150 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       _priorities = args['priorities'] as List<dynamic>? ?? [];
       _members = args['members'] as List<dynamic>? ?? [];
       _epics = args['epics'] as List<dynamic>? ?? [];
+      _myRole = _text(args['userRole'], 'Member');
     }
+
+    _initUser();
+  }
+
+  Future<void> _initUser() async {
+    _myUserId = await AuthService.getUserId();
+    _myName = await AuthService.getUserName();
+
+    final pid = _projectId ?? _asInt(_task?['projectId'] ?? _task?['ProjectId']);
+    if (pid != null && pid > 0) {
+      try {
+        final projects = await ProjectService.getAllProjects();
+        for (final p in projects) {
+          final id = _asInt(p['projectId'] ?? p['ProjectId'] ?? p['id']);
+          if (id == pid) {
+            final r = _text(p['userRole'] ?? p['UserRole']);
+            if (r.isNotEmpty && mounted) {
+              setState(() => _myRole = r);
+            }
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    _loadComments();
+  }
+
+  Future<void> _loadComments() async {
+    final taskId = _taskId();
+    if (taskId <= 0) return;
+    setState(() => _loadingComments = true);
+    final list = await CommentService.getByTask(taskId);
+    if (mounted) setState(() { _comments = list; _loadingComments = false; });
+  }
+
+  Future<void> _postComment() async {
+    final content = _commentCtrl.text.trim();
+    if (content.isEmpty) return;
+    setState(() => _postingComment = true);
+
+    final result = await CommentService.createComment(
+      taskId: _taskId(),
+      content: content,
+    );
+
+    if (!mounted) return;
+    setState(() => _postingComment = false);
+
+    if (result['success'] == true) {
+      _commentCtrl.clear();
+      // Push notification to all members
+      NotificationService().addNotification(
+        title: '💬 New comment on "${_title()}"',
+        body: '$_myName: $content',
+      );
+      _loadComments();
+    } else {
+      _snack(result['message'] ?? 'Could not post comment');
+    }
+  }
+
+  Future<void> _deleteComment(int commentId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete comment'),
+        content: const Text('Delete this comment?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    final result = await CommentService.deleteComment(commentId);
+    if (mounted) {
+      if (result['success'] == true) {
+        _loadComments();
+      } else {
+        _snack(result['message'] ?? 'Could not delete comment');
+      }
+    }
+  }
+
+  String _getCommentAuthorName(Map<String, dynamic> comment) {
+    final user = comment['user'] ?? comment['User'];
+    final profile = user is Map ? (user['userProfile'] ?? user['UserProfile']) : null;
+
+    String name = '';
+    if (profile is Map) {
+      name = _text(profile['fullName'] ?? profile['FullName']);
+    }
+    if (name.isEmpty && user is Map) {
+      name = _text(user['email'] ?? user['Email']);
+    }
+    if (name.isEmpty) {
+      name = _text(comment['userFullName'] ?? comment['UserFullName']);
+    }
+
+    final authorId = _asInt(comment['userId'] ?? comment['UserId'] ?? (user is Map ? user['userId'] : null));
+
+    if (name.isEmpty && authorId != null && authorId > 0) {
+      for (final m in _members) {
+        final uid = _asInt(m['userId'] ?? m['UserId'] ?? m['user']?['userId']);
+        if (uid == authorId) {
+          name = _text(m['fullName'] ?? m['FullName'] ?? m['email'] ?? m['Email']);
+          break;
+        }
+      }
+    }
+
+    if (name.isEmpty && authorId != null) {
+      return 'User#$authorId';
+    }
+    return name.isNotEmpty ? name : 'User';
   }
 
   int _taskId() => _asInt(_task?['taskId'] ?? _task?['TaskId']) ?? 0;
   int? _statusId() => _asInt(_task?['taskStatusId'] ?? _task?['TaskStatusId']);
   int? _assigneeId() => _asInt(_task?['assigneeId'] ?? _task?['AssigneeId']);
+  bool get _isLeader {
+    final role = _myRole.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+    return role == 'teamleader' || role == 'leader';
+  }
 
   String _title() => _text(_task?['title'] ?? _task?['Title'], 'Untitled task');
-  String _description() =>
-      _text(_task?['description'] ?? _task?['Description'], 'No description.');
-  String _statusName() =>
-      _text(_task?['statusName'] ?? _task?['StatusName'], 'Unknown');
-  String _priorityName() =>
-      _text(_task?['priorityName'] ?? _task?['PriorityName'], 'No priority');
+  String _description() => _text(_task?['description'] ?? _task?['Description'], 'No description.');
+  String _statusName() => _text(_task?['statusName'] ?? _task?['StatusName'], 'Unknown');
+  String _priorityName() => _text(_task?['priorityName'] ?? _task?['PriorityName'], 'No priority');
   String _assigneeName() {
     return _text(
-      _task?['assigneeFullName'] ??
-          _task?['AssigneeFullName'] ??
-          _task?['assigneeEmail'] ??
-          _task?['AssigneeEmail'],
+      _task?['assigneeFullName'] ?? _task?['AssigneeFullName'] ?? _task?['assigneeEmail'] ?? _task?['AssigneeEmail'],
       'Unassigned',
     );
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _edit() async {
@@ -110,10 +260,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         title: const Text('Delete task'),
         content: Text('Delete "${_title()}"? This will soft-delete the task.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -123,7 +270,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
     );
     if (confirm != true) return;
-
     final result = await TaskService.deleteTask(_taskId());
     if (!mounted) return;
     if (result['success'] == true) {
@@ -172,30 +318,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const ListTile(
-              title: Text(
-                'Move task to status',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              title: Text('Move task to status', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             ..._statuses.map((status) {
-              final id =
-                  _asInt(status['taskStatusId'] ?? status['TaskStatusId']) ?? 0;
-              final name = _text(
-                status['statusName'] ?? status['StatusName'],
-                'Status',
-              );
+              final id = _asInt(status['taskStatusId'] ?? status['TaskStatusId']) ?? 0;
+              final name = _text(status['statusName'] ?? status['StatusName'], 'Status');
               return ListTile(
                 leading: Icon(
-                  id == _statusId()
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
+                  id == _statusId() ? Icons.check_circle : Icons.radio_button_unchecked,
                   color: _primary,
                 ),
                 title: Text(name),
-                onTap: () {
-                  Navigator.pop(context);
-                  _move(id);
-                },
+                onTap: () { Navigator.pop(context); _move(id); },
               );
             }),
           ],
@@ -205,24 +339,26 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final task = _task;
     if (task == null) {
       return const Scaffold(body: Center(child: Text('Task not found.')));
     }
 
-    final isSubTask =
-        _asInt(task['parentTaskId'] ?? task['ParentTaskId']) != null;
+    final isSubTask = _asInt(task['parentTaskId'] ?? task['ParentTaskId']) != null;
 
     return Scaffold(
       backgroundColor: _surface,
       appBar: AppBar(
         backgroundColor: _surface,
         elevation: 0,
-        title: const Text(
-          'Task Detail',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Task Detail', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(icon: const Icon(Icons.edit), onPressed: _edit),
           PopupMenuButton<String>(
@@ -240,109 +376,215 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          // Project label
           Text(
             _projectName.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
+          // Badges
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              _Badge(
-                label: isSubTask ? 'SUB-TASK' : 'EPIC',
-                color: isSubTask ? const Color(0xFF4ECDC4) : _primary,
-              ),
+              _Badge(label: isSubTask ? 'SUB-TASK' : 'EPIC', color: isSubTask ? const Color(0xFF4ECDC4) : _primary),
               _Badge(label: _statusName(), color: _primary),
               _Badge(label: _priorityName(), color: Colors.orange),
             ],
           ),
           const SizedBox(height: 18),
-          Text(
-            _title(),
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
+          // Title
+          Text(_title(), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
+          // Description
           _InfoCard(
             title: 'Description',
-            child: Text(
-              _description(),
-              style: const TextStyle(fontSize: 15, height: 1.5),
-            ),
+            child: Text(_description(), style: const TextStyle(fontSize: 15, height: 1.5)),
           ),
+          // Schedule
           _InfoCard(
             title: 'Schedule',
             child: Row(
               children: [
-                const Icon(
-                  Icons.calendar_today_rounded,
-                  color: _primary,
-                  size: 18,
-                ),
+                const Icon(Icons.calendar_today_rounded, color: _primary, size: 18),
                 const SizedBox(width: 8),
-                Text(
-                  _dateOnly(task['dueDate'] ?? task['DueDate']),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                Text(_dateOnly(task['dueDate'] ?? task['DueDate']), style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
+          // Assignee
           _InfoCard(
             title: 'Assignee',
             child: Row(
               children: [
-                CircleAvatar(
-                  backgroundImage:
-                      _text(
-                        task['assigneeAvatarUrl'] ?? task['AssigneeAvatarUrl'],
-                      ).isNotEmpty
-                      ? NetworkImage(
-                          _text(
-                            task['assigneeAvatarUrl'] ??
-                                task['AssigneeAvatarUrl'],
-                          ),
-                        )
-                      : null,
-                  child: _assigneeId() == null
-                      ? const Icon(Icons.person_outline)
-                      : null,
-                ),
+                _InitialsAvatar(_assigneeName()),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    _assigneeName(),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: Text(_assigneeName(), style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 if (_assigneeId() == null)
-                  TextButton.icon(
-                    onPressed: _selfAssign,
-                    icon: const Icon(Icons.person_add_alt),
-                    label: const Text('Claim'),
+                  TextButton.icon(onPressed: _selfAssign, icon: const Icon(Icons.person_add_alt), label: const Text('Claim'))
+                else
+                  TextButton.icon(onPressed: _unassign, icon: const Icon(Icons.person_remove_alt_1), label: const Text('Remove')),
+              ],
+            ),
+          ),
+          // ── Comments section ───────────────────────────────────────────────
+          _InfoCard(
+            title: 'Comments (${_comments.length})',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_loadingComments)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ))
+                else if (_comments.isEmpty)
+                  const Text('No comments yet.', style: TextStyle(color: Colors.grey))
+                else
+                  ..._comments.map((comment) {
+                    final content = _text(comment['content'] ?? comment['Content']);
+                    final authorId = _asInt(comment['userId'] ?? comment['UserId'] ?? comment['user']?['userId'] ?? comment['User']?['userId']);
+                    final authorName = _getCommentAuthorName(comment);
+                    final commentId = _asInt(comment['commentId'] ?? comment['CommentId']) ?? 0;
+                    final createdAt = comment['createdAt'] ?? comment['CreatedAt'];
+                    final isMyComment = authorId != null && authorId == _myUserId;
+                    final canDelete = isMyComment || _isLeader;
+                    final timeStr = createdAt != null
+                        ? _formatTime(DateTime.tryParse(createdAt.toString()))
+                        : '';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _InitialsAvatar(authorName, radius: 16),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      authorName,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(timeStr, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                    if (canDelete) ...[
+                                      const Spacer(),
+                                      GestureDetector(
+                                        onTap: () => _deleteComment(commentId),
+                                        child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isMyComment ? _primary.withValues(alpha: 0.08) : const Color(0xFFF5F5F5),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(content, style: const TextStyle(fontSize: 14, height: 1.4)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+
+                // Input area: chỉ leader được comment
+                const SizedBox(height: 8),
+                if (_isLeader)
+                  Row(
+                    children: [
+                      _InitialsAvatar(_myName, radius: 16),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _commentCtrl,
+                          maxLines: null,
+                          enabled: !_postingComment,
+                          decoration: InputDecoration(
+                            hintText: 'Write a comment...',
+                            hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+                            filled: true,
+                            fillColor: const Color(0xFFF5F5F5),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _postingComment
+                          ? const SizedBox(width: 36, height: 36, child: CircularProgressIndicator(strokeWidth: 2))
+                          : GestureDetector(
+                              onTap: _postComment,
+                              child: Container(
+                                width: 36,
+                                height: 36,
+                                decoration: const BoxDecoration(color: _primary, shape: BoxShape.circle),
+                                child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                              ),
+                            ),
+                    ],
                   )
                 else
-                  TextButton.icon(
-                    onPressed: _unassign,
-                    icon: const Icon(Icons.person_remove_alt_1),
-                    label: const Text('Remove'),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.lock_outline, size: 16, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Only Team Leaders can comment on tasks.',
+                            style: TextStyle(fontSize: 12, color: Colors.orange),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
               ],
             ),
           ),
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
+
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final now = DateTime.now();
+    final diff = now.difference(local);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    return '${local.day}/${local.month}/${local.year}';
+  }
 }
+
+// ─── Widgets ─────────────────────────────────────────────────────────────────
 
 class _InfoCard extends StatelessWidget {
   final String title;
   final Widget child;
-
   const _InfoCard({required this.title, required this.child});
 
   @override
@@ -361,11 +603,7 @@ class _InfoCard extends StatelessWidget {
         children: [
           Text(
             title.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           child,
@@ -378,7 +616,6 @@ class _InfoCard extends StatelessWidget {
 class _Badge extends StatelessWidget {
   final String label;
   final Color color;
-
   const _Badge({required this.label, required this.color});
 
   @override
@@ -389,14 +626,7 @@ class _Badge extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 }

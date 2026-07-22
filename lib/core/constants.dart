@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class ApiConstants {
   // Automatically select the correct base URL based on platform:
   // - Web / Desktop / iOS Simulator: http://localhost:5018/api
@@ -58,4 +56,13 @@ class ApiConstants {
 
   static String get taskStatuses => '$baseUrl/task-statuses';
   static String taskStatus(int id) => '$baseUrl/task-statuses/$id';
+
+  // Comments Endpoints (OData - under baseHost, not baseUrl)
+  static String get comments => '$baseHost/odata/Comments';
+  static String commentsByTask(int taskId) => '$baseHost/odata/Comments?\$filter=TaskId eq $taskId&\$expand=User(\$expand=UserProfile)&\$orderby=CreatedAt asc';
+  static String commentDetail(int commentId) => '$baseHost/odata/Comments($commentId)';
+
+  // Notifications Endpoints (OData - under baseHost, not baseUrl)
+  static String odataNotifications(int userId) => '$baseHost/odata/Notifications?\$filter=UserId eq $userId&\$orderby=CreatedAt desc';
+  static String odataNotificationPatch(int id) => '$baseHost/odata/Notifications($id)';
 }

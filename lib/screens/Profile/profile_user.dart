@@ -463,7 +463,11 @@ class ProfileHeaderCard extends StatelessWidget {
                 backgroundColor: const Color(0xFFF3F0FF),
                 child: CircleAvatar(
                   radius: 54,
-                  backgroundImage: NetworkImage(avatarUrl),
+                  backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+                  child: Text(
+                    avatarUrl.isNotEmpty ? avatarUrl[0].toUpperCase() : 'U',
+                    style: const TextStyle(fontSize: 40, color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
               Positioned(

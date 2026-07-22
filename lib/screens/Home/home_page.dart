@@ -429,18 +429,13 @@ class WelcomeHeader extends StatelessWidget {
             CircleAvatar(
               radius: 24,
               backgroundColor: const Color(0xFFEDEBFF),
-              backgroundImage: avatarUrl != null
-                  ? NetworkImage(avatarUrl!)
-                  : null,
-              child: avatarUrl == null
-                  ? Text(
-                      initial,
-                      style: const TextStyle(
-                        color: _primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  color: _primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Column(
@@ -1047,9 +1042,6 @@ class TaskItem extends StatelessWidget {
     final status = _text(task['statusName'] ?? task['StatusName']);
     final isDone = _isDoneStatus(status);
     final priorityColor = _priorityColor(priority);
-    final assigneeAvatar = _text(
-      task['assigneeAvatarUrl'] ?? task['AssigneeAvatarUrl'],
-    );
     final assigneeName = _text(
       task['assigneeFullName'] ??
           task['AssigneeFullName'] ??
@@ -1157,21 +1149,16 @@ class TaskItem extends StatelessWidget {
             CircleAvatar(
               radius: 12,
               backgroundColor: const Color(0xFFEDEBFF),
-              backgroundImage: assigneeAvatar.isNotEmpty
-                  ? NetworkImage(assigneeAvatar)
-                  : null,
-              child: assigneeAvatar.isEmpty
-                  ? Text(
-                      assigneeName == 'Unassigned'
-                          ? '-'
-                          : assigneeName[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: _primary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
+              child: Text(
+                assigneeName == 'Unassigned'
+                    ? '-'
+                    : assigneeName[0].toUpperCase(),
+                style: const TextStyle(
+                  color: _primary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),

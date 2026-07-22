@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/api_client.dart';
 import '../../core/constants.dart';
 import '../../core/services/auth_service.dart';
@@ -119,23 +120,89 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-class _ProjectChatCard extends StatelessWidget {
+class _ProjectChatCard extends StatefulWidget {
   final int projectId;
   final String projectName;
-  const _ProjectChatCard({required this.projectId, required this.projectName});
+
+  const _ProjectChatCard({
+    required this.projectId,
+    required this.projectName,
+  });
+
+  @override
+  State<_ProjectChatCard> createState() => _ProjectChatCardState();
+}
+
+class _ProjectChatCardState extends State<_ProjectChatCard> {
+  String _lastMsg = 'Tap to open chat';
+  String _timeStr = '';
+  bool _hasUnread = false;
+  int _myUserId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastMessage();
+  }
+
+  Future<void> _loadLastMessage() async {
+    _myUserId = await AuthService.getUserId();
+    try {
+      final response = await ApiClient.get(ApiConstants.chatHistory(widget.projectId));
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        final List<dynamic> data = body['data'] ?? [];
+        if (data.isNotEmpty) {
+          final last = data.last;
+          final content = last['content'] ?? last['Content'] ?? '';
+          final senderName = last['senderName'] ?? last['SenderName'] ?? '';
+          final senderId = last['senderId'] ?? last['SenderId'] ?? 0;
+          final sentAt = last['sentAt'] ?? last['SentAt'];
+          final dt = sentAt != null ? DateTime.tryParse(sentAt.toString()) : null;
+
+          final prefs = await SharedPreferences.getInstance();
+          final lastReadEpoch = prefs.getInt('ChatRead_${widget.projectId}') ?? 0;
+          final msgEpoch = dt?.millisecondsSinceEpoch ?? 0;
+
+          final isUnread = senderId != _myUserId && msgEpoch > lastReadEpoch;
+
+          if (mounted) {
+            setState(() {
+              _lastMsg = senderName.isNotEmpty ? '$senderName: $content' : content;
+              if (dt != null) {
+                final local = dt.toLocal();
+                _timeStr = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+              }
+              _hasUnread = isUnread;
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _openChat() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('ChatRead_${widget.projectId}', DateTime.now().millisecondsSinceEpoch);
+    if (!mounted) return;
+    setState(() => _hasUnread = false);
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatRoomScreen(
+          projectId: widget.projectId,
+          projectName: widget.projectName,
+        ),
+      ),
+    );
+    _loadLastMessage();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                ChatRoomScreen(projectId: projectId, projectName: projectName),
-          ),
-        );
-      },
+      onTap: _openChat,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -151,46 +218,95 @@ class _ProjectChatCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6C63FF), Color(0xFF9C8FFF)],
+            Stack(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6C63FF), Color(0xFF9C8FFF)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.people_alt_rounded, color: Colors.white, size: 26),
                 ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.people_alt_rounded,
-                color: Colors.white,
-                size: 26,
-              ),
+                if (_hasUnread)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    projectName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Color(0xFF1A1A1A),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.projectName,
+                          style: TextStyle(
+                            fontWeight: _hasUnread ? FontWeight.bold : FontWeight.w600,
+                            fontSize: 15,
+                            color: const Color(0xFF1A1A1A),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_timeStr.isNotEmpty)
+                        Text(
+                          _timeStr,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _hasUnread ? const Color(0xFF6C63FF) : const Color(0xFF999999),
+                            fontWeight: _hasUnread ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Tap to open chat',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF999999),
+                    _lastMsg,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _hasUnread ? const Color(0xFF1A1A1A) : const Color(0xFF999999),
+                      fontWeight: _hasUnread ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFFCCCCCC)),
+            const SizedBox(width: 8),
+            if (_hasUnread)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6C63FF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'NEW',
+                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              )
+            else
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFFCCCCCC)),
           ],
         ),
       ),
@@ -664,13 +780,90 @@ class _ChatInputBar extends StatelessWidget {
     required this.onTyping,
   });
 
+  static const List<String> _emojis = [
+    '😀','😂','🥰','😍','😎','🤩','🥳','😊','🙂','😅',
+    '😭','😤','😱','🤔','😴','🤗','😇','😈','🤭','🤫',
+    '👍','👎','👏','🙌','🤝','✌️','💪','👊','🫶','🙏',
+    '❤️','🔥','✨','💯','⭐','🎉','🎊','🎯','💡','🚀',
+    '😋','🤤','😝','🤪','😜','😛','🥴','😵','🤯','😤',
+    '📌','📎','📊','💬','📢','⚡','✅','❌','⏰','📅',
+  ];
+
+  void _openEmojiPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Emoji', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 10,
+                  childAspectRatio: 1,
+                  mainAxisSpacing: 4,
+                  crossAxisSpacing: 4,
+                ),
+                itemCount: _emojis.length,
+                itemBuilder: (ctx, i) => GestureDetector(
+                  onTap: () {
+                    final pos = controller.selection.base.offset;
+                    final text = controller.text;
+                    final newText = pos < 0
+                        ? text + _emojis[i]
+                        : text.substring(0, pos) + _emojis[i] + text.substring(pos);
+                    controller.value = TextEditingValue(
+                      text: newText,
+                      selection: TextSelection.collapsed(
+                        offset: (pos < 0 ? text.length : pos) + _emojis[i].length,
+                      ),
+                    );
+                    Navigator.pop(ctx);
+                  },
+                  child: Center(
+                    child: Text(_emojis[i], style: const TextStyle(fontSize: 22)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       color: Colors.white,
       child: Row(
         children: [
+          // Emoji button
+          GestureDetector(
+            onTap: isConnected ? () => _openEmojiPicker(context) : null,
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: isConnected ? const Color(0xFFF3F0FF) : const Color(0xFFEEEEEE),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.emoji_emotions_outlined, color: Color(0xFF6C63FF), size: 20),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Text field
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -686,32 +879,24 @@ class _ChatInputBar extends StatelessWidget {
                 maxLines: null,
                 decoration: InputDecoration(
                   hintText: isConnected ? 'Type a message...' : 'Connecting...',
-                  hintStyle: const TextStyle(
-                    color: Color(0xFFB0B0B0),
-                    fontSize: 14,
-                  ),
+                  hintStyle: const TextStyle(color: Color(0xFFB0B0B0), fontSize: 14),
                   border: InputBorder.none,
                 ),
               ),
             ),
           ),
           const SizedBox(width: 8),
+          // Send button
           GestureDetector(
             onTap: isConnected ? onSend : null,
             child: Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: isConnected
-                    ? const Color(0xFF6C63FF)
-                    : const Color(0xFFCCCCCC),
+                color: isConnected ? const Color(0xFF6C63FF) : const Color(0xFFCCCCCC),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.send_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
+              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
             ),
           ),
         ],
