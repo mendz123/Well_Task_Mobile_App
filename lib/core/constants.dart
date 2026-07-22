@@ -4,19 +4,24 @@ class ApiConstants {
   // Automatically select the correct base URL based on platform:
   // - Web / Desktop / iOS Simulator: http://localhost:5018/api
   // - Android Emulator: http://10.0.2.2:5018/api
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5018/api';
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://192.168.1.42/api';
-    } else {
-      return 'http://localhost:5018/api';
-    }
-  }
+  // static String get baseUrl {
+  //   if (kIsWeb) {
+  //     return 'http://localhost:5018/api';
+  //   } else if (defaultTargetPlatform == TargetPlatform.android) {
+  //     return 'http://192.168.1.42/api';
+  //   } else {
+  //     return 'http://localhost:5018/api';
+  //   }
+  // }
 
-  // static  String baseUrl = 'http://192.168.1.42:5018';
-  static String baseHost = '$baseUrl/api';
-  static  String hubUrl = '$baseUrl/chatHub';
+  // // static  String baseUrl = 'http://192.168.1.42:5018';
+  // static String baseHost = '$baseUrl/api';
+  // static  String hubUrl = '$baseUrl/chatHub';
+
+
+  static const String baseHost = 'http://192.168.1.42:5018';
+  static const String baseUrl = '$baseHost/api';
+  static const String hubUrl = '$baseHost/chatHub';
 
   // Chat Endpoints
   static String chatHistory(int projectId) => '$baseUrl/chat/$projectId/history';
